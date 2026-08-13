@@ -287,36 +287,57 @@ def load_data(categories_tuple: tuple[str]) -> pd.DataFrame:
 def _get_connection() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.execute(
-        "CREATE TABLE IF NOT EXISTS lead_stato (chiave TEXT PRIMARY KEY, stato TEXT NOT NULL, data_aggiornamento TEXT)"
+        "CREATE TABLE IF NOT EXISTS lead_stato (chiave TEXT PRIMARY KEY, stato TEXT NOT NULL, data_aggiornamento TEXT, data_richiamo TEXT)"
     )
     columns = [row[1] for row in conn.execute("PRAGMA table_info(lead_stato)").fetchall()]
     if "data_aggiornamento" not in columns:
         conn.execute("ALTER TABLE lead_stato ADD COLUMN data_aggiornamento TEXT")
+    if "data_richiamo" not in columns:
+        conn.execute("ALTER TABLE lead_stato ADD COLUMN data_richiamo TEXT")
     return conn
 
 
-def load_stati() -> dict[str, tuple[str, str | None]]:
+def load_stati() -> dict[str, tuple[str, str | None, str | None]]:
     conn = _get_connection()
     try:
         rows = conn.execute(
-            "SELECT chiave, stato, data_aggiornamento FROM lead_stato"
+            "SELECT chiave, stato, data_aggiornamento, data_richiamo FROM lead_stato"
         ).fetchall()
     finally:
         conn.close()
-    return {chiave: (stato, data) for chiave, stato, data in rows}
+    return {chiave: (stato, data, richiamo) for chiave, stato, data, richiamo in rows}
 
 
-def save_state(chiave: str, stato: str) -> None:
+def save_state(chiave: str, stato: str, data_richiamo: str | None = None) -> None:
     conn = _get_connection()
     try:
         conn.execute(
-            "INSERT INTO lead_stato (chiave, stato, data_aggiornamento) VALUES (?, ?, ?) "
-            "ON CONFLICT(chiave) DO UPDATE SET stato = excluded.stato, data_aggiornamento = excluded.data_aggiornamento",
-            (chiave, stato, datetime.now().isoformat(timespec="seconds")),
+            "INSERT INTO lead_stato (chiave, stato, data_aggiornamento, data_richiamo) VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(chiave) DO UPDATE SET stato = excluded.stato, "
+            "data_aggiornamento = excluded.data_aggiornamento, data_richiamo = excluded.data_richiamo",
+            (chiave, stato, datetime.now().isoformat(timespec="seconds"), data_richiamo),
         )
         conn.commit()
     finally:
         conn.close()
+
+
+def normalize_dt(value) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.isoformat(timespec="seconds")
+    if isinstance(value, str):
+        try:
+            return pd.to_datetime(value).isoformat(timespec="seconds")
+        except Exception:
+            return None
+    if isinstance(value, (tuple, list)) and len(value) >= 3:
+        try:
+            return datetime(*value[:6]).isoformat(timespec="seconds")
+        except Exception:
+            return None
+    return None
 
 
 def apply_stati(data: pd.DataFrame) -> pd.DataFrame:
@@ -326,8 +347,12 @@ def apply_stati(data: pd.DataFrame) -> pd.DataFrame:
             data["nome"] + "|" + data["indirizzo"],
         )
     stati = load_stati()
-    data["Stato"] = data["chiave"].map(lambda k: stati.get(k, ("Da chiamare", None))[0]).fillna("Da chiamare")
-    data["data_aggiornamento"] = data["chiave"].map(lambda k: stati.get(k, (None, None))[1])
+    data["Stato"] = data["chiave"].map(lambda k: stati.get(k, ("Da chiamare", None, None))[0]).fillna("Da chiamare")
+    data["data_aggiornamento"] = data["chiave"].map(lambda k: stati.get(k, (None, None, None))[1])
+    data["richiama_il"] = pd.to_datetime(
+        data["chiave"].map(lambda k: stati.get(k, (None, None, None))[2]),
+        errors="coerce",
+    )
     return data
 
 
@@ -336,9 +361,19 @@ def on_stato_edit() -> None:
     if not editor or not editor.get("edited_rows"):
         return
     keys = st.session_state.get("editor_keys", [])
+    current = load_stati()
     for row_index, changes in editor["edited_rows"].items():
-        if "Stato" in changes:
-            save_state(keys[row_index], changes["Stato"])
+        key = keys[row_index]
+        stato_old, _, data_old = current.get(key, ("Da chiamare", None, None))
+        stato = changes.get("Stato", stato_old)
+        if "richiama_il" in changes:
+            data_richiamo = normalize_dt(changes["richiama_il"])
+        else:
+            data_richiamo = data_old
+        if stato != "Richiamare":
+            data_richiamo = None
+        if "Stato" in changes or "richiama_il" in changes:
+            save_state(key, stato, data_richiamo)
 
 
 def generate_script(row: pd.Series) -> str:
@@ -475,7 +510,7 @@ def leads_page(full: pd.DataFrame, selected_categories: list[str]) -> None:
     st.session_state["editor_keys"] = filtered["chiave"].tolist()
 
     st.data_editor(
-        filtered[["categoria", "nome", "indirizzo", "telefono", "ha_sito", "Stato"]],
+        filtered[["categoria", "nome", "indirizzo", "telefono", "ha_sito", "Stato", "richiama_il"]],
         key="stato_editor",
         on_change=on_stato_edit,
         column_config={
@@ -483,6 +518,10 @@ def leads_page(full: pd.DataFrame, selected_categories: list[str]) -> None:
                 "Stato",
                 options=STATI,
                 required=True,
+            ),
+            "richiama_il": st.column_config.DatetimeColumn(
+                "Richiama il",
+                format="DD/MM/YYYY HH:mm",
             ),
         },
         disabled=["categoria", "nome", "indirizzo", "telefono", "ha_sito"],
