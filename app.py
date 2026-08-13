@@ -54,34 +54,52 @@ STATO_COLORS = {
     "Chiuso": "#34d399",
 }
 
-CATEGORIES = [
-    "ristoranti a Altamura",
-    "pizzerie a Altamura",
-    "trattorie a Altamura",
-    "hotel a Altamura",
-    "b&b a Altamura",
-    "bar a Altamura",
-    "gelaterie a Altamura",
-    "pasticcerie a Altamura",
-    "parrucchieri a Altamura",
-    "barbieri a Altamura",
-    "centri estetici a Altamura",
-    "studi dentistici a Altamura",
-    "panifici a Altamura",
-    "farmacie a Altamura",
-    "palestre a Altamura",
-    "agriturismo a Altamura",
-    "autofficine a Altamura",
-    "officine meccaniche a Altamura",
-    "fiorai a Altamura",
-    "lavanderie a Altamura",
-    "ottici a Altamura",
-    "gabinetti veterinari a Altamura",
+CATEGORY_TERMS = [
+    "ristoranti",
+    "pizzerie",
+    "trattorie",
+    "hotel",
+    "b&b",
+    "bar",
+    "gelaterie",
+    "pasticcerie",
+    "parrucchieri",
+    "barbieri",
+    "centri estetici",
+    "studi dentistici",
+    "panifici",
+    "farmacie",
+    "palestre",
+    "agriturismo",
+    "autofficine",
+    "officine meccaniche",
+    "fiorai",
+    "lavanderie",
+    "ottici",
+    "gabinetti veterinari",
 ]
 
-MAX_PAGES = 3
+CITIES = [
+    "Altamura",
+    "Bari",
+    "Taranto",
+    "Foggia",
+    "Lecce",
+    "Brindisi",
+    "Barletta",
+    "Andria",
+    "Trani",
+    "Molfetta",
+    "Bitonto",
+    "Monopoli",
+    "Corato",
+]
 
-DATA_VERSION = 2
+CATEGORIES = [f"{term} a {city}" for city in CITIES for term in CATEGORY_TERMS]
+
+MAX_PAGES = 2
+
+DATA_VERSION = 3
 
 LEAD_ESCLUSI = [
     "ChIJBYjezjOHRxMRAqarqNIAELk",
@@ -405,25 +423,35 @@ def read_qp(name: str, default: str) -> str:
 
 def persist_filters() -> None:
     qp = st.query_params
-    qp["categorie"] = ",".join(st.session_state.get("cat_widget", []))
+    qp["citta"] = ",".join(st.session_state.get("citta_widget", []))
+    qp["termini"] = ",".join(st.session_state.get("termini_widget", []))
     qp["cerca"] = str(st.session_state.get("cerca_widget", ""))
     qp["stati"] = ",".join(st.session_state.get("stati_widget", []))
     qp["refresh"] = str(st.session_state.get("refresh_widget", "5s"))
     qp["tab"] = str(st.session_state.get("tabs_key", 0))
 
 
-def leads_page(full: pd.DataFrame, selected_categories: list[str]) -> None:
+def leads_page(full: pd.DataFrame) -> None:
     st.sidebar.header("Filtri")
 
-    default_categories = [c for c in CATEGORIES if c in read_qp("categorie", "").split(",")] or CATEGORIES
+    default_cities = [c for c in CITIES if c in read_qp("citta", "").split(",")] or CITIES
+    default_terms = [t for t in CATEGORY_TERMS if t in read_qp("termini", "").split(",")] or CATEGORY_TERMS
     default_cerca = read_qp("cerca", "")
     default_stati = [s for s in STATI if s in read_qp("stati", "").split(",")] or STATI
 
-    selected_categories = st.sidebar.multiselect(
+    selected_cities = st.sidebar.multiselect(
+        "Città",
+        options=CITIES,
+        default=default_cities,
+        key="citta_widget",
+        on_change=persist_filters,
+    )
+
+    selected_terms = st.sidebar.multiselect(
         "Categorie",
-        options=CATEGORIES,
-        default=default_categories,
-        key="cat_widget",
+        options=CATEGORY_TERMS,
+        default=default_terms,
+        key="termini_widget",
         on_change=persist_filters,
     )
 
@@ -453,7 +481,9 @@ def leads_page(full: pd.DataFrame, selected_categories: list[str]) -> None:
         on_change=persist_filters,
     )
 
-    selected = full[full["categoria"].isin(selected_categories)].copy() if selected_categories else full.copy()
+    selected = full[full["categoria"].isin(
+        [f"{t} a {c}" for c in selected_cities for t in selected_terms]
+    )].copy() if selected_cities and selected_terms else full.copy()
 
     if selected.empty:
         st.info("Nessun lead per i filtri selezionati.")
@@ -542,7 +572,7 @@ def dashboard_page(data: pd.DataFrame) -> None:
 
     st.markdown("### Lead per categoria e stato")
     chart_data = data.copy()
-    chart_data["categoria_breve"] = chart_data["categoria"].str.replace(" a Altamura", "", regex=False)
+    chart_data["categoria_breve"] = chart_data["categoria"].str.split(" a ").str[0]
     pivot = (
         chart_data.pivot_table(
             index="categoria_breve",
@@ -609,7 +639,7 @@ def dashboard_page(data: pd.DataFrame) -> None:
 def main() -> None:
     st.set_page_config(page_title="Lead Gen Locali", layout="wide")
     inject_css()
-    st.title("Lead Gen Locali — Altamura")
+    st.title("Lead Gen Locali — Puglia")
 
     full = load_data(tuple(CATEGORIES), DATA_VERSION)
     if full.empty:
@@ -628,7 +658,7 @@ def main() -> None:
     tab_lead, tab_dash = st.tabs(["Lead", "Dashboard"], key="tabs_key", on_change=persist_filters)
 
     with tab_lead:
-        leads_page(full, CATEGORIES)
+        leads_page(full)
 
     with tab_dash:
         dashboard_page(full)
