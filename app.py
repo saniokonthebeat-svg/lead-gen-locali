@@ -117,7 +117,6 @@ FIELD_MASK = (
 ICONS = {
     "zap": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
     "globe": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
-    "layers": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>',
     "phone": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 7 23 1 17 1"/><line x1="16" y1="8" x2="23" y2="1"/><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
     "rotate": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>',
     "check": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
@@ -610,6 +609,20 @@ def render_legend() -> None:
     st.markdown(f'<div class="legend">{items}</div>', unsafe_allow_html=True)
 
 
+class PlacesApiError(RuntimeError):
+    pass
+
+
+def extract_google_error(response) -> str:
+    try:
+        err = response.json().get("error", {})
+        message = err.get("message", "").strip()
+        status = err.get("status", "").strip()
+        return f"{status} {message}".strip()
+    except Exception:
+        return (response.text or "risposta vuota")[:300]
+
+
 def search_category(category: str) -> list[dict]:
     headers = {
         "Content-Type": "application/json",
@@ -623,8 +636,15 @@ def search_category(category: str) -> list[dict]:
         payload = {"textQuery": category}
         if page_token:
             payload["pageToken"] = page_token
-        response = requests.post(URL, json=payload, headers=headers)
-        response.raise_for_status()
+        try:
+            response = requests.post(URL, json=payload, headers=headers, timeout=60)
+        except requests.RequestException as exc:
+            raise PlacesApiError(f"Errore di rete verso Google Places: {exc}") from exc
+        if response.status_code != 200:
+            raise PlacesApiError(
+                f"Google Places ha rifiutato la richiesta (HTTP {response.status_code}): "
+                f"{extract_google_error(response)}"
+            )
         data = response.json()
         places.extend(data.get("places", []))
         page_token = data.get("nextPageToken")
@@ -733,33 +753,12 @@ def exclude_activity(place_id: str, chiave: str) -> None:
     conn = _get_connection()
     try:
         conn.execute(
-            "CREATE TABLE IF NOT EXISTS lead_esclusi (chiave TEXT PRIMARY KEY, data TEXT)"
-        )
-        conn.execute(
             "INSERT OR IGNORE INTO lead_esclusi (chiave, data) VALUES (?, ?)",
             (chiave or place_id, datetime.now().isoformat(timespec="seconds")),
         )
         conn.commit()
     finally:
         conn.close()
-
-
-def normalize_dt(value) -> str | None:
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        return value.isoformat(timespec="seconds")
-    if isinstance(value, str):
-        try:
-            return pd.to_datetime(value).isoformat(timespec="seconds")
-        except Exception:
-            return None
-    if isinstance(value, (tuple, list)) and len(value) >= 3:
-        try:
-            return datetime(*value[:6]).isoformat(timespec="seconds")
-        except Exception:
-            return None
-    return None
 
 
 def apply_stati(data: pd.DataFrame) -> pd.DataFrame:
@@ -769,9 +768,7 @@ def apply_stati(data: pd.DataFrame) -> pd.DataFrame:
             data["nome"] + "|" + data["indirizzo"],
         )
     stati = load_stati()
-    if LEAD_ESCLUSI:
-        data = data[~data["chiave"].isin(LEAD_ESCLUSI)]
-    esclusi = load_esclusi()
+    esclusi = load_esclusi() | set(LEAD_ESCLUSI)
     if esclusi:
         data = data[~data["chiave"].isin(esclusi)]
     data = data[data["website"] == ""]
@@ -1289,7 +1286,15 @@ def main() -> None:
     with st.sidebar:
         render_brand()
 
-    full = load_data(tuple(CATEGORIES), DATA_VERSION)
+    try:
+        full = load_data(tuple(CATEGORIES), DATA_VERSION)
+    except PlacesApiError as exc:
+        st.error(
+            f"Google Places non risponde correttamente.\n\n**Motivo esatto:** {exc}\n\n"
+            f"Chiave in uso termina con `…{API_KEY[-4:] if API_KEY else '??'}` — "
+            "controlla che sia quella attiva nella Google Cloud Console."
+        )
+        st.stop()
     if full.empty:
         st.info("Nessun dato trovato. Controlla la chiave API di Google Places.")
         return
