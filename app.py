@@ -74,9 +74,7 @@ CATEGORY_TERMS = [
     "autofficine",
     "officine meccaniche",
     "fiorai",
-    "lavanderie",
     "ottici",
-    "gabinetti veterinari",
 ]
 
 CITIES = [
@@ -99,7 +97,7 @@ CATEGORIES = [f"{term} a {city}" for city in CITIES for term in CATEGORY_TERMS]
 
 MAX_PAGES = 2
 
-DATA_VERSION = 3
+DATA_VERSION = 4
 
 LEAD_ESCLUSI = [
     "ChIJBYjezjOHRxMRAqarqNIAELk",
@@ -278,6 +276,8 @@ def search_all_categories(categories: list[str]) -> list[dict]:
         for place in search_category(category):
             if place.get("websiteUri"):
                 continue
+            if not place.get("internationalPhoneNumber"):
+                continue
             rating_count = place.get("userRatingCount") or 0
             nome = place.get("displayName", {}).get("text", "N/D")
             indirizzo = place.get("formattedAddress", "N/D")
@@ -381,6 +381,7 @@ def apply_stati(data: pd.DataFrame) -> pd.DataFrame:
     if LEAD_ESCLUSI:
         data = data[~data["chiave"].isin(LEAD_ESCLUSI)]
     data = data[data["website"] == ""]
+    data = data[data["telefono"] != "N/D"]
     data["Stato"] = data["chiave"].map(lambda k: stati.get(k, ("Da chiamare", None, None))[0]).fillna("Da chiamare")
     data["data_aggiornamento"] = data["chiave"].map(lambda k: stati.get(k, (None, None, None))[1])
     data["richiama_il"] = pd.to_datetime(
