@@ -447,18 +447,14 @@ def leads_page(full: pd.DataFrame, selected_categories: list[str]) -> None:
 
     st.session_state["editor_keys"] = filtered["chiave"].tolist()
 
-    editor_df = filtered.copy()
-    url_to_name = dict(zip(editor_df["maps_url"], editor_df["nome"]))
-    editor_df["nome"] = editor_df["maps_url"]
-
     st.data_editor(
-        editor_df[["categoria", "nome", "indirizzo", "telefono", "ha_sito", "Stato", "richiama_il"]],
+        filtered[["categoria", "nome", "indirizzo", "telefono", "ha_sito", "maps_url", "Stato", "richiama_il"]],
         key="stato_editor",
         on_change=on_stato_edit,
         column_config={
-            "nome": st.column_config.LinkColumn(
-                "Nome",
-                display_text=lambda url: url_to_name.get(url, url),
+            "maps_url": st.column_config.LinkColumn(
+                "Google Maps",
+                display_text="Apri",
             ),
             "Stato": st.column_config.SelectboxColumn(
                 "Stato",
@@ -470,7 +466,7 @@ def leads_page(full: pd.DataFrame, selected_categories: list[str]) -> None:
                 format="DD/MM/YYYY HH:mm",
             ),
         },
-        disabled=["categoria", "nome", "indirizzo", "telefono", "ha_sito"],
+        disabled=["categoria", "nome", "indirizzo", "telefono", "ha_sito", "maps_url"],
         hide_index=True,
         use_container_width=True,
     )
