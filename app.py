@@ -1,7 +1,9 @@
 import os
 import sqlite3
 import urllib.parse
+import json
 from datetime import datetime
+from html import escape as esc
 
 import pandas as pd
 import plotly.express as px
@@ -120,6 +122,11 @@ ICONS = {
     "rotate": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>',
     "check": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
     "trend": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>',
+    "dots": '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>',
+    "copy": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+    "trash": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+    "calendar": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+    "pin": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
 }
 
 
@@ -444,6 +451,92 @@ def inject_css() -> None:
         }
         @keyframes revealIn { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: none; } }
 
+        /* ==========================================================
+           TABELLA LEAD PERSONALIZZATA + MENU CONTESTO
+           ========================================================== */
+        .lead-table {
+            border: 1px solid var(--border); border-radius: 16px; overflow: hidden;
+            box-shadow: 0 24px 70px -34px rgba(0, 0, 0, .85);
+            background: rgba(10, 16, 34, .72); backdrop-filter: blur(10px);
+            animation: fadeUp .55s .05s cubic-bezier(.16, 1, .3, 1) both;
+        }
+        .lt-scroll { max-height: 72vh; overflow: auto; }
+        .lt-head, .lt-row {
+            display: grid;
+            grid-template-columns: minmax(230px, 2.6fr) 1.35fr 1.15fr .7fr 1fr .5fr;
+            gap: 12px; align-items: center; padding: 11px 18px;
+        }
+        .lt-head {
+            position: sticky; top: 0; z-index: 3;
+            background: rgba(13, 20, 40, .98);
+            color: var(--muted); font-size: .72rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: .09em; border-bottom: 1px solid var(--border);
+        }
+        .lt-row { border-bottom: 1px solid rgba(255, 255, 255, 0.05); cursor: context-menu; transition: background .18s ease; position: relative; }
+        .lt-row:last-child { border-bottom: none; }
+        .lt-row:hover { background: rgba(255, 255, 255, 0.035); }
+        .lt-row.removing { opacity: 0; transform: translateX(14px); transition: opacity .4s ease, transform .4s ease; }
+        .lt-cell { min-width: 0; color: var(--text); font-size: .9rem; }
+        .lt-nome b { display: block; font-size: .95rem; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .lt-sub { display: block; color: var(--muted); font-size: .76rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .lt-tel a, .lt-map-link { color: var(--cyan); text-decoration: none; font-size: .9rem; }
+        .lt-tel a:hover, .lt-map-link:hover { text-decoration: underline; }
+        .pill {
+            display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
+            font-size: .76rem; font-weight: 700; white-space: nowrap;
+        }
+        .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+        .lt-rich { color: var(--amber); font-size: .85rem; font-weight: 600; }
+        .lt-more { text-align: right; }
+        .lt-more-btn {
+            width: 32px; height: 32px; border-radius: 9px; border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.04); color: var(--muted); cursor: pointer;
+            display: inline-grid; place-items: center; transition: all .18s ease;
+        }
+        .lt-more-btn:hover { color: #fff; border-color: rgba(79, 172, 254, .5); background: rgba(79, 172, 254, .12); }
+        .lt-more-btn svg { width: 16px; height: 16px; }
+
+        /* ----- Menu contesto ----- */
+        .lt-menu {
+            position: fixed; z-index: 10000; min-width: 232px; display: none;
+            background: #0f1a30; border: 1px solid var(--border); border-radius: 13px;
+            box-shadow: 0 22px 64px -18px rgba(0, 0, 0, .95);
+            padding: 6px; animation: fadeIn .14s ease both;
+        }
+        .lt-menu .mi {
+            display: flex; align-items: center; gap: 11px; padding: 8px 12px;
+            border-radius: 9px; cursor: pointer; color: var(--text); font-size: .88rem;
+            white-space: nowrap; transition: background .12s ease;
+        }
+        .lt-menu .mi svg { width: 16px; height: 16px; color: var(--muted); flex: none; }
+        .lt-menu .mi:hover { background: rgba(79, 172, 254, .14); color: #fff; }
+        .lt-menu .mi:hover svg { color: var(--cyan); }
+        .lt-menu .mi.st .m-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+        .lt-menu .mi.danger { color: #fda4af; }
+        .lt-menu .mi.danger svg { color: #f87171; }
+        .lt-menu .mi.danger:hover { background: rgba(248, 113, 113, .16); color: #fff; }
+        .lt-menu .mi-sep { height: 1px; background: var(--border); margin: 6px 10px; }
+        .lt-panel { display: none; padding: 8px 12px; }
+        .lt-panel.open { display: block; }
+        .lt-confirm { color: var(--text); font-size: .85rem; margin-bottom: 8px; }
+        .lt-confirm-btns { display: flex; gap: 8px; }
+        .lt-btn {
+            flex: 1; padding: 7px 0; border: 1px solid var(--border); border-radius: 9px;
+            background: rgba(255, 255, 255, 0.05); color: var(--text); font-weight: 700; font-size: .8rem; cursor: pointer;
+        }
+        .lt-btn.ok { background: linear-gradient(135deg, #f87171, #ef4444); border: none; color: #fff; }
+        .lt-btn:hover { filter: brightness(1.1); }
+        .lt-dt { width: 100%; padding: 7px 9px; border-radius: 9px; border: 1px solid var(--border); background: rgba(255, 255, 255, 0.06); color: #fff; color-scheme: dark; font-size: .85rem; }
+
+        /* ----- Toast ----- */
+        .lt-toast {
+            position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%);
+            background: #0e2a3f; border: 1px solid rgba(34, 211, 238, .45); color: #a5f3fc;
+            padding: 10px 20px; border-radius: 12px; font-size: .9rem; z-index: 10001;
+            opacity: 0; pointer-events: none; transition: opacity .28s ease; box-shadow: 0 14px 40px -12px rgba(0, 0, 0, .8);
+        }
+        .lt-toast.show { opacity: 1; }
+
         @media (prefers-reduced-motion: reduce) {
             .fx .px, .fx .o, .stApp::before, .stApp::after { animation: none !important; }
             .kpi, .kpi-grid, [data-testid="stMetric"] { transition: none !important; }
@@ -517,13 +610,6 @@ def render_legend() -> None:
     st.markdown(f'<div class="legend">{items}</div>', unsafe_allow_html=True)
 
 
-def style_map(styler: "pd.io.formats.style.Styler", func, subset) -> "pd.io.formats.style.Styler":
-    try:
-        return styler.map(func, subset=subset)
-    except TypeError:
-        return styler.applymap(func, subset=subset)
-
-
 def search_category(category: str) -> list[dict]:
     headers = {
         "Content-Type": "application/json",
@@ -591,6 +677,9 @@ def _get_connection() -> sqlite3.Connection:
     conn.execute(
         "CREATE TABLE IF NOT EXISTS lead_stato (chiave TEXT PRIMARY KEY, stato TEXT NOT NULL, data_aggiornamento TEXT, data_richiamo TEXT)"
     )
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS lead_esclusi (chiave TEXT PRIMARY KEY, data TEXT)"
+    )
     columns = [row[1] for row in conn.execute("PRAGMA table_info(lead_stato)").fetchall()]
     if "data_aggiornamento" not in columns:
         conn.execute("ALTER TABLE lead_stato ADD COLUMN data_aggiornamento TEXT")
@@ -631,6 +720,30 @@ def build_maps_url(nome: str, indirizzo: str, place_id: str) -> str:
     return f"https://www.google.com/maps/search/?api=1&query={query}"
 
 
+def load_esclusi() -> set[str]:
+    conn = _get_connection()
+    try:
+        rows = conn.execute("SELECT chiave FROM lead_esclusi").fetchall()
+    finally:
+        conn.close()
+    return {row[0] for row in rows}
+
+
+def exclude_activity(place_id: str, chiave: str) -> None:
+    conn = _get_connection()
+    try:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS lead_esclusi (chiave TEXT PRIMARY KEY, data TEXT)"
+        )
+        conn.execute(
+            "INSERT OR IGNORE INTO lead_esclusi (chiave, data) VALUES (?, ?)",
+            (chiave or place_id, datetime.now().isoformat(timespec="seconds")),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def normalize_dt(value) -> str | None:
     if value is None:
         return None
@@ -658,6 +771,9 @@ def apply_stati(data: pd.DataFrame) -> pd.DataFrame:
     stati = load_stati()
     if LEAD_ESCLUSI:
         data = data[~data["chiave"].isin(LEAD_ESCLUSI)]
+    esclusi = load_esclusi()
+    if esclusi:
+        data = data[~data["chiave"].isin(esclusi)]
     data = data[data["website"] == ""]
     data = data[data["telefono"] != "N/D"]
     data["Stato"] = data["chiave"].map(lambda k: stati.get(k, ("Da chiamare", None, None))[0]).fillna("Da chiamare")
@@ -671,26 +787,6 @@ def apply_stati(data: pd.DataFrame) -> pd.DataFrame:
         axis=1,
     )
     return data
-
-
-def on_stato_edit() -> None:
-    editor = st.session_state.get("stato_editor")
-    if not editor or not editor.get("edited_rows"):
-        return
-    keys = st.session_state.get("editor_keys", [])
-    current = load_stati()
-    for row_index, changes in editor["edited_rows"].items():
-        key = keys[row_index]
-        stato_old, _, data_old = current.get(key, ("Da chiamare", None, None))
-        stato = changes.get("Stato", stato_old)
-        if "richiama_il" in changes:
-            data_richiamo = normalize_dt(changes["richiama_il"])
-        else:
-            data_richiamo = data_old
-        if stato != "Richiamare":
-            data_richiamo = None
-        if "Stato" in changes or "richiama_il" in changes:
-            save_state(key, stato, data_richiamo)
 
 
 def read_qp(name: str, default: str) -> str:
@@ -708,6 +804,232 @@ def persist_filters() -> None:
     qp["stati"] = ",".join(st.session_state.get("stati_widget", []))
     qp["refresh"] = str(st.session_state.get("refresh_widget", "5s"))
     qp["tab"] = str(st.session_state.get("tabs_key", 0))
+
+
+def render_leads_table(data: pd.DataFrame) -> None:
+    rows: list[str] = []
+    js_rows: list[dict] = []
+    for _, r in data.iterrows():
+        chiave = str(r.get("chiave", ""))
+        place_id = str(r.get("place_id", ""))
+        nome = str(r.get("nome", ""))
+        indirizzo = str(r.get("indirizzo", ""))
+        categoria = str(r.get("categoria", ""))
+        telefono = str(r.get("telefono", ""))
+        stato = str(r.get("Stato", "Da chiamare"))
+        color = STATO_COLORS.get(stato, "#94a3b8")
+        maps_url = str(r.get("maps_url", ""))
+        rich = r.get("richiama_il")
+        rich_txt = ""
+        if pd.notna(rich):
+            try:
+                rich_txt = pd.to_datetime(rich).strftime("%d/%m/%Y %H:%M")
+            except Exception:
+                rich_txt = ""
+
+        pill = f'<span class="pill" style="color:{color}">{esc(stato)}</span>'
+        rich_cell = f'<span class="lt-rich">{esc(rich_txt)}</span>' if rich_txt else "<span class='lt-muted'>—</span>"
+        tel_cell = (
+            f'<a href="tel:{esc(telefono)}">{esc(telefono)}</a>'
+            if telefono and telefono != "N/D"
+            else "<span class='lt-muted'>N/D</span>"
+        )
+        cat_cell = f"<span class='lt-sub'>{esc(categoria)}</span>" if categoria else ""
+
+        rows.append(
+            f'<div class="lt-row" data-chiave="{esc(chiave)}" data-place="{esc(place_id)}">'
+            f'<div class="lt-cell lt-nome"><b>{esc(nome)}</b>{cat_cell}</div>'
+            f'<div class="lt-cell lt-addr">{esc(indirizzo)}</div>'
+            f'<div class="lt-cell lt-tel">{tel_cell}</div>'
+            f'<div class="lt-cell">{pill}</div>'
+            f'<div class="lt-cell">{rich_cell}</div>'
+            f'<div class="lt-cell lt-more"><button class="lt-more-btn" title="Azioni">{ICONS["dots"]}</button></div>'
+            "</div>"
+        )
+        js_rows.append(
+            {
+                "chiave": chiave,
+                "place_id": place_id,
+                "nome": nome,
+                "indirizzo": indirizzo,
+                "telefono": telefono,
+                "stato": stato,
+                "maps_url": maps_url,
+            }
+        )
+
+    rows_html = "\n".join(rows)
+    js_data = json.dumps(js_rows, ensure_ascii=False)
+    stati_js = json.dumps(STATI, ensure_ascii=False)
+    stati_colors = json.dumps(STATO_COLORS, ensure_ascii=False)
+
+    st.html(
+        f"""
+        <div class="lead-table">
+            <div class="lt-scroll">
+                <div class="lt-head">
+                    <div>Attività</div><div>Indirizzo</div><div>Telefono</div><div>Stato</div><div>Richiama il</div><div></div>
+                </div>
+                {rows_html}
+            </div>
+        </div>
+        <div class="lt-menu" id="lt-menu"></div>
+        <div class="lt-toast" id="lt-toast"></div>
+        <script>
+        (function () {{
+            var DATA = {js_data};
+            var STATI = {stati_js};
+            var COLORS = {stati_colors};
+            var menu = document.getElementById('lt-menu');
+            var toast = document.getElementById('lt-toast');
+            var cur = null, curRow = null;
+
+            function escT(s) {{ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }}
+
+            function showToast(msg) {{
+                toast.textContent = msg;
+                toast.classList.add('show');
+                clearTimeout(showToast._t);
+                showToast._t = setTimeout(function () {{ toast.classList.remove('show'); }}, 2400);
+            }}
+
+            function act(payload) {{
+                var u = new URL(window.location.href);
+                u.searchParams.set('ctx', payload);
+                window.location.href = u.toString();
+            }}
+
+            function findRow(r) {{ return r && r.closest && r.closest('.lt-row'); }}
+
+            function openMenu(row, x, y) {{
+                curRow = row;
+                cur = DATA.find(function (d) {{ return d.chiave === row.getAttribute('data-chiave'); }}) || null;
+                var mw = 252;
+                var mh = 420;
+                if (x + mw > window.innerWidth - 8) x = window.innerWidth - mw - 8;
+                if (y + mh > window.innerHeight - 8) y = window.innerHeight - mh - 8;
+                if (x < 8) x = 8; if (y < 8) y = 8;
+
+                var html = '';
+                html += '<div class="mi" data-a="maps">' + ICONS_PIN + '<span>' + escT(cur.nome) + '</span></div>';
+                html += '<div class="mi" data-a="tel">' + ICONS_PHONE + '<span>Chiama ' + escT(cur.telefono) + '</span></div>';
+                html += '<div class="mi" data-a="copyn">' + ICONS_COPY + '<span>Copia nome</span></div>';
+                html += '<div class="mi" data-a="copyi">' + ICONS_COPY + '<span>Copia indirizzo</span></div>';
+                html += '<div class="mi" data-a="copyt">' + ICONS_COPY + '<span>Copia telefono</span></div>';
+                html += '<div class="mi-sep"></div>';
+                html += '<div class="mi st" data-a="st|Da chiamare"><span class="m-dot" style="color:' + COLORS['Da chiamare'] + '"></span><span>Da chiamare</span></div>';
+                html += '<div class="mi st" data-a="st|Chiamato - interessato"><span class="m-dot" style="color:' + COLORS['Chiamato - interessato'] + '"></span><span>Interessato</span></div>';
+                html += '<div class="mi st" data-a="st|Chiamato - rifiutato"><span class="m-dot" style="color:' + COLORS['Chiamato - rifiutato'] + '"></span><span>Rifiutato</span></div>';
+                html += '<div class="mi st" data-a="st|Richiamare"><span class="m-dot" style="color:' + COLORS['Richiamare'] + '"></span><span>Richiamare</span></div>';
+                html += '<div class="mi st" data-a="st|Chiuso"><span class="m-dot" style="color:' + COLORS['Chiuso'] + '"></span><span>Chiuso</span></div>';
+                html += '<div class="mi-sep"></div>';
+                html += '<div class="mi" data-a="rc">' + ICONS_CAL + '<span>Fissa richiamo…</span></div>';
+                html += '<div class="mi-sep"></div>';
+                html += '<div class="mi danger" data-a="rem">' + ICONS_TRASH + '<span>Rimuovi attività</span></div>';
+
+                menu.innerHTML = html;
+                menu.style.display = 'block';
+                menu.style.left = x + 'px';
+                menu.style.top = y + 'px';
+                menu.setAttribute('data-open', '1');
+            }}
+
+            function closeMenu() {{
+                menu.style.display = 'none';
+                menu.removeAttribute('data-open');
+            }}
+
+            function copyText(txt) {{
+                if (navigator.clipboard && navigator.clipboard.writeText) {{
+                    navigator.clipboard.writeText(txt).then(function () {{ showToast('Copiato: ' + txt); }});
+                }} else {{
+                    var ta = document.createElement('textarea');
+                    ta.value = txt; document.body.appendChild(ta); ta.select();
+                    try {{ document.execCommand('copy'); showToast('Copiato: ' + txt); }} catch (e) {{}}
+                    document.body.removeChild(ta);
+                }}
+            }}
+
+            document.addEventListener('contextmenu', function (e) {{
+                var row = findRow(e.target);
+                if (row) {{
+                    e.preventDefault();
+                    openMenu(row, e.clientX, e.clientY);
+                }} else {{
+                    closeMenu();
+                }}
+            }});
+
+            document.addEventListener('click', function (e) {{
+                var btn = e.target.closest('.lt-more-btn');
+                if (btn) {{
+                    var row = findRow(btn);
+                    var r = row.getBoundingClientRect();
+                    openMenu(row, r.right - 252, r.top + 12);
+                    return;
+                }}
+                if (menu.getAttribute('data-open') && !menu.contains(e.target)) closeMenu();
+                var a2 = e.target.closest('[data-a2]');
+                if (a2) {{
+                    if (a2.getAttribute('data-a2') === 'rem') {{
+                        act('rem|' + encodeURIComponent(cur.place_id) + '|' + encodeURIComponent(cur.chiave));
+                        var row = curRow; if (row) row.classList.add('removing');
+                        closeMenu();
+                    }} else if (a2.getAttribute('data-a2') === 'no') {{
+                        closeMenu();
+                    }}
+                    return;
+                }}
+                var mi = e.target.closest('.mi');
+                if (!mi || !menu.getAttribute('data-open')) return;
+                var a = mi.getAttribute('data-a') || '';
+                if (a.indexOf('st|') === 0) {{
+                    act('st|' + encodeURIComponent(cur.chiave) + '|' + a.slice(3));
+                }} else if (a === 'rem') {{
+                    if (menu.querySelector('.lt-confirm')) {{
+                        act('rem|' + encodeURIComponent(cur.place_id) + '|' + encodeURIComponent(cur.chiave));
+                        var row = curRow; if (row) row.classList.add('removing');
+                        closeMenu();
+                    }} else {{
+                        var conf = '<div class="lt-panel open"><div class="lt-confirm">Rimuovere <b>' + escT(cur.nome) + '</b> dalla lista?</div><div class="lt-confirm-btns"><button class="lt-btn ok" data-a2="rem">Sì, rimuovi</button><button class="lt-btn" data-a2="no">Annulla</button></div></div>';
+                        var panel = document.createElement('div'); panel.innerHTML = conf;
+                        mi.closest('.mi').insertAdjacentHTML('afterend', panel.innerHTML);
+                    }}
+                }} else if (a === 'no') {{
+                    closeMenu();
+                }} else if (a === 'maps') {{
+                    window.open(cur.maps_url, '_blank');
+                    closeMenu();
+                }} else if (a === 'tel') {{
+                    window.location.href = 'tel:' + cur.telefono;
+                    closeMenu();
+                }} else if (a === 'copyn') {{ copyText(cur.nome); closeMenu(); }}
+                else if (a === 'copyi') {{ copyText(cur.indirizzo); closeMenu(); }}
+                else if (a === 'copyt') {{ copyText(cur.telefono); closeMenu(); }}
+                else if (a === 'rc') {{
+                    var inp = '<div class="lt-panel open"><input type="datetime-local" class="lt-dt" id="lt-dt" value=""><div style="display:flex;gap:8px;margin-top:8px"><button class="lt-btn ok" id="lt-dt-ok">Salva</button><button class="lt-btn" data-a2="no">Annulla</button></div></div>';
+                    mi.closest('.mi').insertAdjacentHTML('afterend', inp);
+                    var ok = document.getElementById('lt-dt-ok');
+                    if (ok) ok.addEventListener('click', function () {{
+                        var v = document.getElementById('lt-dt').value;
+                        if (!v) return;
+                        act('rc|' + encodeURIComponent(cur.chiave) + '|' + v);
+                    }});
+                }}
+            }});
+
+            document.addEventListener('keydown', function (e) {{ if (e.key === 'Escape') closeMenu(); }});
+
+            var ICONS_PIN = '{ICONS["pin"]}';
+            var ICONS_PHONE = '{ICONS["phone"]}';
+            var ICONS_COPY = '{ICONS["copy"]}';
+            var ICONS_CAL = '{ICONS["calendar"]}';
+            var ICONS_TRASH = '{ICONS["trash"]}';
+        }})();
+        </script>
+        """,
+        unsafe_allow_javascript=True,
+    )
 
 
 def leads_page(full: pd.DataFrame) -> None:
@@ -804,52 +1126,8 @@ def leads_page(full: pd.DataFrame) -> None:
         ]
     )
 
-    st.session_state["editor_keys"] = filtered["chiave"].tolist()
-
-    editor_df = filtered[["categoria", "nome", "indirizzo", "telefono", "maps_url", "Stato", "richiama_il"]]
-
-    def _color_stato(value):
-        if value in STATO_COLORS:
-            return f"color:{STATO_COLORS[value]};font-weight:700;"
-        return ""
-
-    def _color_richiamo(value):
-        if pd.notna(value):
-            return "color:#fbbf24;font-weight:700;"
-        return ""
-
-    styler = editor_df.style
-    styler = style_map(styler, _color_stato, subset=["Stato"])
-    styler = style_map(styler, _color_richiamo, subset=["richiama_il"])
-
-    st.data_editor(
-        styler,
-        key="stato_editor",
-        on_change=on_stato_edit,
-        height=1000,
-        column_config={
-            "categoria": st.column_config.TextColumn("Categoria", width="medium"),
-            "nome": st.column_config.TextColumn("Nome", width="large"),
-            "indirizzo": st.column_config.TextColumn("Indirizzo", width="large"),
-            "maps_url": st.column_config.LinkColumn(
-                "Google Maps",
-                display_text="Apri",
-            ),
-            "Stato": st.column_config.SelectboxColumn(
-                "Stato",
-                options=STATI,
-                required=True,
-            ),
-            "richiama_il": st.column_config.DatetimeColumn(
-                "Richiama il",
-                format="DD/MM/YYYY HH:mm",
-            ),
-        },
-        disabled=["categoria", "nome", "indirizzo", "telefono", "maps_url"],
-        hide_index=True,
-        width="stretch",
-    )
-    st.caption("In cima: lead \"Da chiamare\" e \"Richiamare\". Clicca sullo stato per cambiarlo, sulla colonna \"Richiama il\" per fissare il richiamo.")
+    render_leads_table(filtered)
+    st.caption('Clic destro sulla riga o su "⋮" per azioni. Tasto destro su "Rimuovi attività" toglie il locale dalla lista.')
 
     st.sidebar.divider()
 
@@ -1015,6 +1293,28 @@ def main() -> None:
     if full.empty:
         st.info("Nessun dato trovato. Controlla la chiave API di Google Places.")
         return
+
+    ctx = read_qp("ctx", "")
+    if ctx:
+        try:
+            parts = ctx.split("|", 2)
+            if len(parts) == 3:
+                kind, arg1, arg2 = parts
+                arg1 = urllib.parse.unquote(arg1)
+                arg2 = urllib.parse.unquote(arg2)
+                if kind == "rem":
+                    exclude_activity(arg1, arg2)
+                elif kind == "st" and arg2 in STATI:
+                    save_state(arg1, arg2)
+                elif kind == "rc" and arg2:
+                    save_state(arg1, "Richiamare", arg2)
+        except Exception:
+            pass
+        try:
+            st.query_params.pop("ctx", None)
+        except Exception:
+            pass
+
     full = apply_stati(full.copy())
 
     refresh_choice = read_qp("refresh", "5s")
