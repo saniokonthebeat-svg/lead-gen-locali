@@ -81,6 +81,8 @@ CATEGORIES = [
 
 MAX_PAGES = 3
 
+DATA_VERSION = 2
+
 LEAD_ESCLUSI = [
     "ChIJBYjezjOHRxMRAqarqNIAELk",
 ]
@@ -285,7 +287,7 @@ def search_all_categories(categories: list[str]) -> list[dict]:
 
 
 @st.cache_data(show_spinner="Cerco attività su Google Places...")
-def load_data(categories_tuple: tuple[str]) -> pd.DataFrame:
+def load_data(categories_tuple: tuple[str], version: int) -> pd.DataFrame:
     return pd.DataFrame(search_all_categories(list(categories_tuple)))
 
 
@@ -361,6 +363,7 @@ def apply_stati(data: pd.DataFrame) -> pd.DataFrame:
     stati = load_stati()
     if LEAD_ESCLUSI:
         data = data[~data["chiave"].isin(LEAD_ESCLUSI)]
+    data = data[data["ha_sito"] != "SÌ"]
     data["Stato"] = data["chiave"].map(lambda k: stati.get(k, ("Da chiamare", None, None))[0]).fillna("Da chiamare")
     data["data_aggiornamento"] = data["chiave"].map(lambda k: stati.get(k, (None, None, None))[1])
     data["richiama_il"] = pd.to_datetime(
@@ -609,7 +612,7 @@ def main() -> None:
     inject_css()
     st.title("Lead Gen Locali — Altamura")
 
-    full = load_data(tuple(CATEGORIES))
+    full = load_data(tuple(CATEGORIES), DATA_VERSION)
     if full.empty:
         st.info("Nessun dato trovato. Controlla la chiave API di Google Places.")
         return
