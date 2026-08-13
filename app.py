@@ -476,7 +476,9 @@ def inject_css() -> None:
         .lt-row:hover { background: rgba(255, 255, 255, 0.035); }
         .lt-row.removing { opacity: 0; transform: translateX(14px); transition: opacity .4s ease, transform .4s ease; }
         .lt-cell { min-width: 0; color: var(--text); font-size: .9rem; }
-        .lt-nome b { display: block; font-size: .95rem; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .lt-nome b { display: block; font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .lt-name { display: block; color: #fff; text-decoration: none; transition: color .15s ease; }
+        .lt-name:hover { color: var(--cyan); text-decoration: underline; }
         .lt-sub { display: block; color: var(--muted); font-size: .76rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .lt-tel a, .lt-map-link { color: var(--cyan); text-decoration: none; font-size: .9rem; }
         .lt-tel a:hover, .lt-map-link:hover { text-decoration: underline; }
@@ -500,7 +502,8 @@ def inject_css() -> None:
             position: fixed; z-index: 10000; min-width: 232px; display: none;
             background: #0f1a30; border: 1px solid var(--border); border-radius: 13px;
             box-shadow: 0 22px 64px -18px rgba(0, 0, 0, .95);
-            padding: 6px; animation: fadeIn .14s ease both;
+            padding: 6px; max-height: min(560px, 82vh); overflow-y: auto;
+            animation: fadeIn .14s ease both;
         }
         .lt-menu .mi {
             display: flex; align-items: center; gap: 11px; padding: 8px 12px;
@@ -806,7 +809,7 @@ def persist_filters() -> None:
 def render_leads_table(data: pd.DataFrame) -> None:
     rows: list[str] = []
     js_rows: list[dict] = []
-    for _, r in data.iterrows():
+    for i, (_, r) in enumerate(data.iterrows()):
         chiave = str(r.get("chiave", ""))
         place_id = str(r.get("place_id", ""))
         nome = str(r.get("nome", ""))
@@ -832,10 +835,14 @@ def render_leads_table(data: pd.DataFrame) -> None:
             else "<span class='lt-muted'>N/D</span>"
         )
         cat_cell = f"<span class='lt-sub'>{esc(categoria)}</span>" if categoria else ""
+        name_cell = (
+            f'<a class="lt-name" href="{esc(maps_url)}" target="_blank" rel="noopener" title="Apri su Google Maps">'
+            f"<b>{esc(nome)}</b></a>{cat_cell}"
+        )
 
         rows.append(
-            f'<div class="lt-row" data-chiave="{esc(chiave)}" data-place="{esc(place_id)}">'
-            f'<div class="lt-cell lt-nome"><b>{esc(nome)}</b>{cat_cell}</div>'
+            f'<div class="lt-row" data-chiave="{esc(chiave)}" data-place="{esc(place_id)}" data-idx="{i}">'
+            f'<div class="lt-cell lt-nome">{name_cell}</div>'
             f'<div class="lt-cell lt-addr">{esc(indirizzo)}</div>'
             f'<div class="lt-cell lt-tel">{tel_cell}</div>'
             f'<div class="lt-cell">{pill}</div>'
@@ -877,17 +884,31 @@ def render_leads_table(data: pd.DataFrame) -> None:
             var DATA = {js_data};
             var STATI = {stati_js};
             var COLORS = {stati_colors};
-            var menu = document.getElementById('lt-menu');
-            var toast = document.getElementById('lt-toast');
-            var cur = null, curRow = null;
+
+            window.__ltData = DATA;
+            window.__ltStati = STATI;
+            window.__ltColors = COLORS;
+            window.__ltCur = null;
+            window.__ltCurRow = null;
+
+            var ICONS_PIN = '{ICONS["pin"]}';
+            var ICONS_PHONE = '{ICONS["phone"]}';
+            var ICONS_COPY = '{ICONS["copy"]}';
+            var ICONS_CAL = '{ICONS["calendar"]}';
+            var ICONS_TRASH = '{ICONS["trash"]}';
+
+            if (window.__ltBound) return;
+            window.__ltBound = true;
 
             function escT(s) {{ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }}
 
             function showToast(msg) {{
-                toast.textContent = msg;
-                toast.classList.add('show');
+                var t = document.getElementById('lt-toast');
+                if (!t) return;
+                t.textContent = msg;
+                t.classList.add('show');
                 clearTimeout(showToast._t);
-                showToast._t = setTimeout(function () {{ toast.classList.remove('show'); }}, 2400);
+                showToast._t = setTimeout(function () {{ t.classList.remove('show'); }}, 2400);
             }}
 
             function act(payload) {{
@@ -896,13 +917,22 @@ def render_leads_table(data: pd.DataFrame) -> None:
                 window.location.href = u.toString();
             }}
 
-            function findRow(r) {{ return r && r.closest && r.closest('.lt-row'); }}
+            function findRow(el) {{ return el && el.closest && el.closest('.lt-row'); }}
+
+            function rowData(row) {{
+                if (!row) return null;
+                var idx = parseInt(row.getAttribute('data-idx'), 10);
+                var d = window.__ltData || [];
+                return (idx >= 0 && idx < d.length) ? d[idx] : null;
+            }}
 
             function openMenu(row, x, y) {{
-                curRow = row;
-                cur = DATA.find(function (d) {{ return d.chiave === row.getAttribute('data-chiave'); }}) || null;
-                var mw = 252;
-                var mh = 420;
+                var menu = document.getElementById('lt-menu');
+                var cur = rowData(row);
+                if (!menu || !cur) return;
+                window.__ltCur = cur;
+                window.__ltCurRow = row;
+                var mw = 252, mh = 470;
                 if (x + mw > window.innerWidth - 8) x = window.innerWidth - mw - 8;
                 if (y + mh > window.innerHeight - 8) y = window.innerHeight - mh - 8;
                 if (x < 8) x = 8; if (y < 8) y = 8;
@@ -914,11 +944,12 @@ def render_leads_table(data: pd.DataFrame) -> None:
                 html += '<div class="mi" data-a="copyi">' + ICONS_COPY + '<span>Copia indirizzo</span></div>';
                 html += '<div class="mi" data-a="copyt">' + ICONS_COPY + '<span>Copia telefono</span></div>';
                 html += '<div class="mi-sep"></div>';
-                html += '<div class="mi st" data-a="st|Da chiamare"><span class="m-dot" style="color:' + COLORS['Da chiamare'] + '"></span><span>Da chiamare</span></div>';
-                html += '<div class="mi st" data-a="st|Chiamato - interessato"><span class="m-dot" style="color:' + COLORS['Chiamato - interessato'] + '"></span><span>Interessato</span></div>';
-                html += '<div class="mi st" data-a="st|Chiamato - rifiutato"><span class="m-dot" style="color:' + COLORS['Chiamato - rifiutato'] + '"></span><span>Rifiutato</span></div>';
-                html += '<div class="mi st" data-a="st|Richiamare"><span class="m-dot" style="color:' + COLORS['Richiamare'] + '"></span><span>Richiamare</span></div>';
-                html += '<div class="mi st" data-a="st|Chiuso"><span class="m-dot" style="color:' + COLORS['Chiuso'] + '"></span><span>Chiuso</span></div>';
+                var stati = window.__ltStati || [];
+                var colors = window.__ltColors || {{}};
+                for (var s = 0; s < stati.length; s++) {{
+                    var st = stati[s];
+                    html += '<div class="mi st" data-a="st|' + st + '"><span class="m-dot" style="color:' + (colors[st] || '#94a3b8') + '"></span><span>' + escT(st) + '</span></div>';
+                }}
                 html += '<div class="mi-sep"></div>';
                 html += '<div class="mi" data-a="rc">' + ICONS_CAL + '<span>Fissa richiamo…</span></div>';
                 html += '<div class="mi-sep"></div>';
@@ -932,8 +963,8 @@ def render_leads_table(data: pd.DataFrame) -> None:
             }}
 
             function closeMenu() {{
-                menu.style.display = 'none';
-                menu.removeAttribute('data-open');
+                var menu = document.getElementById('lt-menu');
+                if (menu) {{ menu.style.display = 'none'; menu.removeAttribute('data-open'); }}
             }}
 
             function copyText(txt) {{
@@ -949,48 +980,51 @@ def render_leads_table(data: pd.DataFrame) -> None:
 
             document.addEventListener('contextmenu', function (e) {{
                 var row = findRow(e.target);
-                if (row) {{
-                    e.preventDefault();
-                    openMenu(row, e.clientX, e.clientY);
-                }} else {{
-                    closeMenu();
-                }}
+                if (row) {{ e.preventDefault(); openMenu(row, e.clientX, e.clientY); }}
+                else {{ closeMenu(); }}
             }});
 
             document.addEventListener('click', function (e) {{
+                var menu = document.getElementById('lt-menu');
                 var btn = e.target.closest('.lt-more-btn');
                 if (btn) {{
                     var row = findRow(btn);
-                    var r = row.getBoundingClientRect();
-                    openMenu(row, r.right - 252, r.top + 12);
+                    if (row) {{
+                        var r = row.getBoundingClientRect();
+                        openMenu(row, r.right - 252, r.top + 12);
+                    }}
                     return;
                 }}
-                if (menu.getAttribute('data-open') && !menu.contains(e.target)) closeMenu();
+                if (menu && menu.getAttribute('data-open') && !menu.contains(e.target)) closeMenu();
+
                 var a2 = e.target.closest('[data-a2]');
                 if (a2) {{
-                    if (a2.getAttribute('data-a2') === 'rem') {{
+                    var cur = window.__ltCur;
+                    if (a2.getAttribute('data-a2') === 'rem' && cur) {{
                         act('rem|' + encodeURIComponent(cur.place_id) + '|' + encodeURIComponent(cur.chiave));
-                        var row = curRow; if (row) row.classList.add('removing');
+                        var row = window.__ltCurRow; if (row) row.classList.add('removing');
                         closeMenu();
                     }} else if (a2.getAttribute('data-a2') === 'no') {{
                         closeMenu();
                     }}
                     return;
                 }}
+
                 var mi = e.target.closest('.mi');
-                if (!mi || !menu.getAttribute('data-open')) return;
+                if (!mi || !menu || !menu.getAttribute('data-open')) return;
+                var cur = window.__ltCur;
+                if (!cur) return;
                 var a = mi.getAttribute('data-a') || '';
                 if (a.indexOf('st|') === 0) {{
                     act('st|' + encodeURIComponent(cur.chiave) + '|' + a.slice(3));
                 }} else if (a === 'rem') {{
                     if (menu.querySelector('.lt-confirm')) {{
                         act('rem|' + encodeURIComponent(cur.place_id) + '|' + encodeURIComponent(cur.chiave));
-                        var row = curRow; if (row) row.classList.add('removing');
+                        var row = window.__ltCurRow; if (row) row.classList.add('removing');
                         closeMenu();
                     }} else {{
                         var conf = '<div class="lt-panel open"><div class="lt-confirm">Rimuovere <b>' + escT(cur.nome) + '</b> dalla lista?</div><div class="lt-confirm-btns"><button class="lt-btn ok" data-a2="rem">Sì, rimuovi</button><button class="lt-btn" data-a2="no">Annulla</button></div></div>';
-                        var panel = document.createElement('div'); panel.innerHTML = conf;
-                        mi.closest('.mi').insertAdjacentHTML('afterend', panel.innerHTML);
+                        mi.closest('.mi').insertAdjacentHTML('afterend', conf);
                     }}
                 }} else if (a === 'no') {{
                     closeMenu();
@@ -1016,12 +1050,6 @@ def render_leads_table(data: pd.DataFrame) -> None:
             }});
 
             document.addEventListener('keydown', function (e) {{ if (e.key === 'Escape') closeMenu(); }});
-
-            var ICONS_PIN = '{ICONS["pin"]}';
-            var ICONS_PHONE = '{ICONS["phone"]}';
-            var ICONS_COPY = '{ICONS["copy"]}';
-            var ICONS_CAL = '{ICONS["calendar"]}';
-            var ICONS_TRASH = '{ICONS["trash"]}';
         }})();
         </script>
         """,
@@ -1124,7 +1152,7 @@ def leads_page(full: pd.DataFrame) -> None:
     )
 
     render_leads_table(filtered)
-    st.caption('Clic destro sulla riga o su "⋮" per azioni. Tasto destro su "Rimuovi attività" toglie il locale dalla lista.')
+    st.caption('Clicca sul nome per aprire Google Maps. Clic destro sulla riga o su "⋮" per cambiare stato, fissare un richiamo o rimuovere il locale.')
 
     st.sidebar.divider()
 
