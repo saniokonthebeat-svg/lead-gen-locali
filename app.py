@@ -297,6 +297,109 @@ def inject_css() -> None:
         ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.03); }
         ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, var(--blue), var(--cyan)); border-radius: 8px; }
 
+        /* ==========================================================
+           LAYER ANIMAZIONI DINAMICHE
+           ========================================================== */
+
+        /* ----- Sfere di luce ambientali che fluttuano ----- */
+        .stApp::before, .stApp::after {
+            content: ""; position: fixed; z-index: 0; pointer-events: none;
+            border-radius: 50%; filter: blur(90px);
+        }
+        .stApp::before {
+            width: 520px; height: 520px; top: -160px; right: -140px;
+            background: radial-gradient(circle, rgba(79, 172, 254, 0.45), transparent 70%);
+            animation: orbA 26s ease-in-out infinite alternate;
+        }
+        .stApp::after {
+            width: 460px; height: 460px; bottom: -180px; left: -140px;
+            background: radial-gradient(circle, rgba(167, 139, 250, 0.4), transparent 70%);
+            animation: orbB 32s ease-in-out infinite alternate;
+        }
+        @keyframes orbA { from { transform: translate(0, 0) scale(1); } to { transform: translate(-70px, 50px) scale(1.18); } }
+        @keyframes orbB { from { transform: translate(0, 0) scale(1); } to { transform: translate(80px, -60px) scale(1.22); } }
+
+        /* ----- Hero ----- */
+        .hero .badge { animation: fadeIn .6s ease both, badgeFloat 5s ease-in-out infinite alternate; }
+        @keyframes badgeFloat { from { transform: translateY(0); } to { transform: translateY(-3px); } }
+        .hero h1 { animation: titleFlow 8s linear infinite, fadeUp .6s ease both; }
+        .hero p { animation: fadeUp .7s .08s ease both, pFade 6s ease-in-out infinite alternate; }
+        @keyframes pFade { from { opacity: .9; } to { opacity: 1; } }
+
+        /* ----- KPI: ingresso a cascata + valore "pop" ----- */
+        .kpi-grid .kpi { animation: fadeUp .55s cubic-bezier(.16, 1, .3, 1) both; }
+        .kpi-grid .kpi:nth-child(1) { animation-delay: .04s; }
+        .kpi-grid .kpi:nth-child(2) { animation-delay: .12s; }
+        .kpi-grid .kpi:nth-child(3) { animation-delay: .20s; }
+        .kpi-grid .kpi:nth-child(4) { animation-delay: .28s; }
+        .kpi-grid .kpi:nth-child(5) { animation-delay: .36s; }
+        .kpi-grid .kpi:nth-child(6) { animation-delay: .44s; }
+        .kpi .value { animation: valuePop .6s cubic-bezier(.16, 1, .3, 1) both; }
+        @keyframes valuePop { 0% { transform: scale(.55); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+        /* ----- KPI: micro-tilt 3D al hover (expo.out) ----- */
+        .kpi-grid { perspective: 900px; }
+        .kpi { transform-style: preserve-3d; transition: transform .35s cubic-bezier(.16, 1, .3, 1), border-color .22s ease, box-shadow .22s ease; }
+        .kpi:hover { transform: translateY(-6px) rotateX(3deg) rotateY(-3deg); }
+
+        /* ----- KPI: riflesso luminoso periodico ----- */
+        .kpi::after {
+            content: ""; position: absolute; inset: 0; pointer-events: none;
+            background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.05) 45%, rgba(255, 255, 255, 0.12) 50%, rgba(255, 255, 255, 0.05) 55%, transparent 70%);
+            background-size: 250% 100%;
+            animation: shimmer 7s ease-in-out infinite;
+        }
+        @keyframes shimmer { 0%, 55% { background-position: 120% 0; } 100% { background-position: -120% 0; } }
+
+        /* ----- Brand: respiro del logo ----- */
+        .brand .mark { animation: brandBreathe 4s ease-in-out infinite; }
+        @keyframes brandBreathe { 0%, 100% { box-shadow: 0 8px 22px -6px rgba(79, 172, 254, .6); transform: scale(1); } 50% { box-shadow: 0 8px 32px -4px rgba(34, 211, 238, .85); transform: scale(1.05); } }
+
+        /* ----- Titoli sezione: glow pulsante ----- */
+        .section-head .glow { animation: glowPulse 3.2s ease-in-out infinite; }
+        @keyframes glowPulse { 0%, 100% { box-shadow: 0 0 8px rgba(34, 211, 238, .35); } 50% { box-shadow: 0 0 22px rgba(34, 211, 238, .8); } }
+
+        /* ----- Tab attivo: pop d'ingresso ----- */
+        [data-testid="stTabs"] [aria-selected="true"] { animation: tabPop .35s cubic-bezier(.16, 1, .3, 1); }
+        @keyframes tabPop { 0% { transform: scale(.94); } 60% { transform: scale(1.04); } 100% { transform: scale(1); } }
+
+        /* ----- Tabella: alone luminoso pulsante ----- */
+        [data-testid="stDataFrame"] {
+            animation: fadeUp .6s .05s ease both, tableGlow 6s ease-in-out infinite;
+        }
+        @keyframes tableGlow {
+            0%, 100% { box-shadow: 0 24px 70px -34px rgba(0, 0, 0, .85), 0 0 0 rgba(34, 211, 238, 0); }
+            50% { box-shadow: 0 24px 70px -34px rgba(0, 0, 0, .85), 0 0 36px -6px rgba(34, 211, 238, .38); }
+        }
+
+        /* ----- Metriche dashboard: ingresso scalato ----- */
+        [data-testid="stHorizontalBlock"] > div:nth-child(1) [data-testid="stMetric"] { animation-delay: .05s; }
+        [data-testid="stHorizontalBlock"] > div:nth-child(2) [data-testid="stMetric"] { animation-delay: .15s; }
+        [data-testid="stHorizontalBlock"] > div:nth-child(3) [data-testid="stMetric"] { animation-delay: .25s; }
+        [data-testid="stHorizontalBlock"] > div:nth-child(4) [data-testid="stMetric"] { animation-delay: .35s; }
+
+        /* ----- Bottone: riflesso che attraversa ----- */
+        .stButton > button, .stDownloadButton > button { position: relative; overflow: hidden; }
+        .stButton > button::after, .stDownloadButton > button::after {
+            content: ""; position: absolute; top: 0; left: -130%; width: 55%; height: 100%;
+            background: linear-gradient(115deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+            transform: skewX(-20deg);
+            animation: btnShine 4.5s ease-in-out infinite;
+        }
+        @keyframes btnShine { 0%, 70% { left: -130%; } 100% { left: 140%; } }
+
+        /* ----- Reveal allo scroll (progressivo, solo se supportato) ----- */
+        @supports (animation-timeline: view()) {
+            .section-head {
+                animation: revealIn linear both;
+                animation-timeline: view();
+                animation-range: entry 0% entry 28%;
+            }
+            .kpi-grid { animation: revealIn linear both; animation-timeline: view(); animation-range: entry 0% entry 22%; }
+            [data-testid="stDataFrame"] { animation: tableGlow 6s ease-in-out infinite, revealIn linear both; animation-timeline: view(); animation-range: entry 0% entry 16%; }
+        }
+        @keyframes revealIn { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: none; } }
+
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
         }
