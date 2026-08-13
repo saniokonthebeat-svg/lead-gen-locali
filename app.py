@@ -8,7 +8,6 @@ import plotly.express as px
 import requests
 import streamlit as st
 from dotenv import load_dotenv
-from openai import OpenAI
 from streamlit_autorefresh import st_autorefresh
 
 load_dotenv()
@@ -30,13 +29,6 @@ API_KEY = get_secret("GOOGLE_PLACES_API_KEY")
 if not API_KEY:
     st.error("Errore: GOOGLE_PLACES_API_KEY non trovata (env, .env o Streamlit secrets).")
     st.stop()
-
-OPENROUTER_API_KEY = get_secret("OPENROUTER_API_KEY")
-OPENROUTER_BASE_URL = get_secret("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
-OPENROUTER_MODEL = get_secret("OPENROUTER_MODEL", "openrouter/free")
-
-if OPENROUTER_API_KEY:
-    openrouter_client = OpenAI(api_key=OPENROUTER_API_KEY, base_url=OPENROUTER_BASE_URL)
 
 URL = "https://places.googleapis.com/v1/places:searchText"
 
@@ -82,34 +74,6 @@ FIELD_MASK = (
     "places.websiteUri,"
     "places.rating,"
     "places.userRatingCount"
-)
-
-SCRIPT_PROMPT_TEMPLATE = (
-    "Sei un esperto di vendita telefonica B2B. Prepara uno script di vendita in italiano "
-    "per chiamare la seguente attività commerciale:\n"
-    "- Nome: {nome}\n"
-    "- Categoria: {categoria}\n"
-    "- Indirizzo: {indirizzo}\n"
-    "- Ha recensioni su Google: {recensioni}\n"
-    "\nContesto: il chiamante ha già creato in anticipo una bozza/mockup di sito web gratuito "
-    "realizzata con i dati Google Maps dell'attività. Lo scopo della chiamata è convincere "
-    "l'attività a mostrarsi quella bozza per proporgli di realizzare una versione completa a pagamento.\n"
-    "\nGenera il seguente contenuto:\n"
-    "1) Un'apertura di chiamata personalizzata di 2-3 frasi che catturi l'attenzione e menzioni "
-    "che è già stata preparata una bozza di sito web per loro, che si vuole mostrargli.\n"
-    "2) Le 3 obiezioni più probabili con una risposta pronta per ciascuna, focalizzate sul fatto "
-    "che non hanno un sito web o che non lo ritengono necessario (non su generici aumenti di prenotazioni).\n"
-    "3) Una frase di chiusura per fissare quando mostrare la bozza: di persona, in videochiamata, "
-    "o mandando direttamente il link.\n"
-    "\nRegole esplicite da rispettare sempre:\n"
-    "- Scrivi SOLO in italiano corretto.\n"
-    "- Tono professionale e diretto da consulente B2B.\n"
-    "- NESSUNA metafora o paragone creativo (niente 'nonna e TikTok', niente linguaggio da marketing acchiappa-like).\n"
-    "- Frasi brevi e concrete.\n"
-    "- Massimo 2 frasi per apertura, obiezione e chiusura.\n"
-    "- Zero emoji.\n"
-    "- Zero asterischi per grassetto nel testo parlato: il testo deve suonare naturale se letto ad alta voce al telefono.\n"
-    "Rispondi solo con lo script, senza introduzioni."
 )
 
 
@@ -376,44 +340,6 @@ def on_stato_edit() -> None:
             save_state(key, stato, data_richiamo)
 
 
-def generate_script(row: pd.Series) -> str:
-    if not OPENROUTER_API_KEY:
-        raise RuntimeError("OPENROUTER_API_KEY non configurata nel file .env")
-    prompt = SCRIPT_PROMPT_TEMPLATE.format(
-        nome=row["nome"],
-        categoria=row["categoria"],
-        indirizzo=row["indirizzo"],
-        recensioni=row["ha_recensioni"],
-    )
-    response = openrouter_client.chat.completions.create(
-        model=OPENROUTER_MODEL,
-        messages=[
-            {"role": "user", "content": prompt},
-        ],
-    )
-    return response.choices[0].message.content
-
-
-def render_row(idx: object, row: pd.Series) -> None:
-    with st.expander(f"{row['nome']} — {row['categoria']} · sito: {row['ha_sito']}"):
-        info_col, button_col = st.columns([4, 1])
-        with info_col:
-            st.write(f"Indirizzo: {row['indirizzo']}")
-            st.write(f"Telefono: {row['telefono']}")
-            st.write(f"Recensioni: {row['ha_recensioni']} · Voto: {row['rating']}")
-        with button_col:
-            if st.button("Genera script di vendita", key=f"gen_{idx}"):
-                with st.spinner("Generazione in corso..."):
-                    try:
-                        st.session_state[f"script_{idx}"] = generate_script(row)
-                    except Exception as error:
-                        st.error(f"Errore di generazione: {error}")
-        script = st.session_state.get(f"script_{idx}")
-        if script:
-            st.markdown("**Script di vendita**")
-            st.code(script, language=None)
-
-
 def read_qp(name: str, default: str) -> str:
     try:
         return str(st.query_params.get(name, default))
@@ -528,29 +454,6 @@ def leads_page(full: pd.DataFrame, selected_categories: list[str]) -> None:
         hide_index=True,
         use_container_width=True,
     )
-
-    count_col, batch_col = st.columns([3, 1])
-    with batch_col:
-        batch_clicked = st.button(
-            "Genera script in batch",
-            key="batch_generate",
-            disabled=filtered.empty,
-        )
-
-    if batch_clicked and not filtered.empty:
-        progress = st.progress(0.0, text="Generazione script in corso...")
-        total = len(filtered)
-        for i, (idx, row) in enumerate(filtered.iterrows()):
-            try:
-                st.session_state[f"script_{idx}"] = generate_script(row)
-            except Exception as error:
-                st.error(f"Errore per {row['nome']}: {error}")
-            progress.progress((i + 1) / total, text=f"Generati {i + 1}/{total}")
-        progress.empty()
-        st.success("Batch completato.")
-
-    for idx, row in filtered.iterrows():
-        render_row(idx, row)
 
     st.sidebar.divider()
 
