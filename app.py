@@ -56,16 +56,30 @@ STATO_COLORS = {
 
 CATEGORIES = [
     "ristoranti a Altamura",
+    "pizzerie a Altamura",
+    "trattorie a Altamura",
     "hotel a Altamura",
+    "b&b a Altamura",
     "bar a Altamura",
+    "gelaterie a Altamura",
+    "pasticcerie a Altamura",
     "parrucchieri a Altamura",
+    "barbieri a Altamura",
+    "centri estetici a Altamura",
     "studi dentistici a Altamura",
     "panifici a Altamura",
     "farmacie a Altamura",
     "palestre a Altamura",
     "agriturismo a Altamura",
     "autofficine a Altamura",
+    "officine meccaniche a Altamura",
+    "fiorai a Altamura",
+    "lavanderie a Altamura",
+    "ottici a Altamura",
+    "gabinetti veterinari a Altamura",
 ]
+
+MAX_PAGES = 3
 
 FIELD_MASK = (
     "places.id,"
@@ -210,22 +224,42 @@ def inject_css() -> None:
     )
 
 
-def search_all_categories(categories: list[str]) -> list[dict]:
+def search_category(category: str) -> list[dict]:
     headers = {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": API_KEY,
         "X-Goog-FieldMask": FIELD_MASK,
     }
 
-    results: list[dict] = []
-    for category in categories:
-        response = requests.post(URL, json={"textQuery": category}, headers=headers)
+    places: list[dict] = []
+    page_token: str | None = None
+    for _ in range(MAX_PAGES):
+        payload = {"textQuery": category}
+        if page_token:
+            payload["pageToken"] = page_token
+        response = requests.post(URL, json=payload, headers=headers)
         response.raise_for_status()
-        for place in response.json().get("places", []):
+        data = response.json()
+        places.extend(data.get("places", []))
+        page_token = data.get("nextPageToken")
+        if not page_token:
+            break
+    return places
+
+
+def search_all_categories(categories: list[str]) -> list[dict]:
+    results: list[dict] = []
+    seen: set[str] = set()
+    for category in categories:
+        for place in search_category(category):
             rating_count = place.get("userRatingCount") or 0
             nome = place.get("displayName", {}).get("text", "N/D")
             indirizzo = place.get("formattedAddress", "N/D")
             place_id = place.get("id") or ""
+            if place_id:
+                if place_id in seen:
+                    continue
+                seen.add(place_id)
             chiave = place_id or f"{nome}|{indirizzo}"
             results.append(
                 {
@@ -362,7 +396,7 @@ def read_qp(name: str, default: str) -> str:
 def persist_filters() -> None:
     qp = st.query_params
     qp["categorie"] = ",".join(st.session_state.get("cat_widget", []))
-    qp["sito"] = str(st.session_state.get("sito_widget", "Tutti"))
+    qp["sito"] = str(st.session_state.get("sito_widget", "Solo senza sito"))
     qp["cerca"] = str(st.session_state.get("cerca_widget", ""))
     qp["stati"] = ",".join(st.session_state.get("stati_widget", []))
     qp["refresh"] = str(st.session_state.get("refresh_widget", "5s"))
@@ -374,8 +408,8 @@ def leads_page(full: pd.DataFrame, selected_categories: list[str]) -> None:
 
     default_categories = [c for c in CATEGORIES if c in read_qp("categorie", "").split(",")] or CATEGORIES
     sito_options = ["Tutti", "Solo con sito", "Solo senza sito"]
-    default_sito = read_qp("sito", "Tutti")
-    default_sito = default_sito if default_sito in sito_options else "Tutti"
+    default_sito = read_qp("sito", "Solo senza sito")
+    default_sito = default_sito if default_sito in sito_options else "Solo senza sito"
     default_cerca = read_qp("cerca", "")
     default_stati = [s for s in STATI if s in read_qp("stati", "").split(",")] or STATI
 
