@@ -9,6 +9,7 @@ import requests
 import streamlit as st
 from dotenv import load_dotenv
 from openai import OpenAI
+from streamlit_autorefresh import st_autorefresh
 
 load_dotenv()
 
@@ -475,6 +476,8 @@ def leads_page(full: pd.DataFrame, selected_categories: list[str]) -> None:
 
 
 def dashboard_page(data: pd.DataFrame) -> None:
+    st_autorefresh(interval=10000, key="dash_autorefresh")
+
     if data.empty:
         st.info("Nessun dato disponibile. Fai una ricerca nella pagina Lead.")
         return
