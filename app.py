@@ -451,7 +451,11 @@ def leads_page(full: pd.DataFrame, selected_categories: list[str]) -> None:
         filtered[["categoria", "nome", "indirizzo", "telefono", "ha_sito", "maps_url", "Stato", "richiama_il"]],
         key="stato_editor",
         on_change=on_stato_edit,
+        height=1000,
         column_config={
+            "categoria": st.column_config.TextColumn("Categoria", width="medium"),
+            "nome": st.column_config.TextColumn("Nome", width="large"),
+            "indirizzo": st.column_config.TextColumn("Indirizzo", width="large"),
             "maps_url": st.column_config.LinkColumn(
                 "Google Maps",
                 display_text="Apri",
