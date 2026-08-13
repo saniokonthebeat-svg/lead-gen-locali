@@ -376,24 +376,63 @@ def render_row(idx: object, row: pd.Series) -> None:
             st.code(script, language=None)
 
 
+def read_qp(name: str, default: str) -> str:
+    try:
+        return str(st.query_params.get(name, default))
+    except Exception:
+        return default
+
+
+def persist_filters() -> None:
+    qp = st.query_params
+    qp["categorie"] = ",".join(st.session_state.get("cat_widget", []))
+    qp["sito"] = str(st.session_state.get("sito_widget", "Tutti"))
+    qp["cerca"] = str(st.session_state.get("cerca_widget", ""))
+    qp["stati"] = ",".join(st.session_state.get("stati_widget", []))
+    qp["tab"] = str(st.session_state.get("tabs_key", 0))
+
+
 def leads_page(full: pd.DataFrame, selected_categories: list[str]) -> None:
     st.sidebar.header("Filtri")
+
+    default_categories = [c for c in CATEGORIES if c in read_qp("categorie", "").split(",")] or CATEGORIES
+    sito_options = ["Tutti", "Solo con sito", "Solo senza sito"]
+    default_sito = read_qp("sito", "Tutti")
+    default_sito = default_sito if default_sito in sito_options else "Tutti"
+    default_cerca = read_qp("cerca", "")
+    default_stati = [s for s in STATI if s in read_qp("stati", "").split(",")] or STATI
 
     selected_categories = st.sidebar.multiselect(
         "Categorie",
         options=CATEGORIES,
-        default=selected_categories,
+        default=default_categories,
+        key="cat_widget",
+        on_change=persist_filters,
     )
 
     site_filter = st.sidebar.radio(
         "Presenza sito web",
-        options=["Tutti", "Solo con sito", "Solo senza sito"],
-        index=0,
+        options=sito_options,
+        index=sito_options.index(default_sito),
+        key="sito_widget",
+        on_change=persist_filters,
     )
 
-    search_text = st.sidebar.text_input("Cerca per nome", placeholder="Es. pizzeria...")
+    search_text = st.sidebar.text_input(
+        "Cerca per nome",
+        placeholder="Es. pizzeria...",
+        value=default_cerca,
+        key="cerca_widget",
+        on_change=persist_filters,
+    )
 
-    selected_stati = st.sidebar.multiselect("Stato lead", options=STATI, default=STATI)
+    selected_stati = st.sidebar.multiselect(
+        "Stato lead",
+        options=STATI,
+        default=default_stati,
+        key="stati_widget",
+        on_change=persist_filters,
+    )
 
     selected = full[full["categoria"].isin(selected_categories)].copy() if selected_categories else full.copy()
 
@@ -577,7 +616,9 @@ def main() -> None:
         return
     full = apply_stati(full.copy())
 
-    tab_lead, tab_dash = st.tabs(["Lead", "Dashboard"])
+    tab_index = 1 if read_qp("tab", "0") == "1" else 0
+    st.session_state["tabs_key"] = tab_index
+    tab_lead, tab_dash = st.tabs(["Lead", "Dashboard"], key="tabs_key", on_change=persist_filters)
 
     with tab_lead:
         leads_page(full, CATEGORIES)
