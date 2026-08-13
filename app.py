@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import sys
+import urllib.parse
 from datetime import datetime
 
 import pandas as pd
@@ -286,6 +287,13 @@ def save_state(chiave: str, stato: str, data_richiamo: str | None = None) -> Non
         conn.close()
 
 
+def build_maps_url(nome: str, indirizzo: str, place_id: str) -> str:
+    query = urllib.parse.quote_plus(f"{nome}, {indirizzo}")
+    if place_id:
+        return f"https://www.google.com/maps/search/?api=1&query={query}&query_place_id={place_id}"
+    return f"https://www.google.com/maps/search/?api=1&query={query}"
+
+
 def normalize_dt(value) -> str | None:
     if value is None:
         return None
@@ -316,6 +324,10 @@ def apply_stati(data: pd.DataFrame) -> pd.DataFrame:
     data["richiama_il"] = pd.to_datetime(
         data["chiave"].map(lambda k: stati.get(k, (None, None, None))[2]),
         errors="coerce",
+    )
+    data["maps_url"] = data.apply(
+        lambda r: build_maps_url(r["nome"], r["indirizzo"], r["place_id"]),
+        axis=1,
     )
     return data
 
@@ -435,11 +447,19 @@ def leads_page(full: pd.DataFrame, selected_categories: list[str]) -> None:
 
     st.session_state["editor_keys"] = filtered["chiave"].tolist()
 
+    editor_df = filtered.copy()
+    url_to_name = dict(zip(editor_df["maps_url"], editor_df["nome"]))
+    editor_df["nome"] = editor_df["maps_url"]
+
     st.data_editor(
-        filtered[["categoria", "nome", "indirizzo", "telefono", "ha_sito", "Stato", "richiama_il"]],
+        editor_df[["categoria", "nome", "indirizzo", "telefono", "ha_sito", "Stato", "richiama_il"]],
         key="stato_editor",
         on_change=on_stato_edit,
         column_config={
+            "nome": st.column_config.LinkColumn(
+                "Nome",
+                display_text=lambda url: url_to_name.get(url, url),
+            ),
             "Stato": st.column_config.SelectboxColumn(
                 "Stato",
                 options=STATI,
