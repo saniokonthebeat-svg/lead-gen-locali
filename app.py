@@ -256,6 +256,8 @@ def search_all_categories(categories: list[str]) -> list[dict]:
     seen: set[str] = set()
     for category in categories:
         for place in search_category(category):
+            if place.get("websiteUri"):
+                continue
             rating_count = place.get("userRatingCount") or 0
             nome = place.get("displayName", {}).get("text", "N/D")
             indirizzo = place.get("formattedAddress", "N/D")
@@ -402,7 +404,6 @@ def read_qp(name: str, default: str) -> str:
 def persist_filters() -> None:
     qp = st.query_params
     qp["categorie"] = ",".join(st.session_state.get("cat_widget", []))
-    qp["sito"] = str(st.session_state.get("sito_widget", "Solo senza sito"))
     qp["cerca"] = str(st.session_state.get("cerca_widget", ""))
     qp["stati"] = ",".join(st.session_state.get("stati_widget", []))
     qp["refresh"] = str(st.session_state.get("refresh_widget", "5s"))
@@ -413,9 +414,6 @@ def leads_page(full: pd.DataFrame, selected_categories: list[str]) -> None:
     st.sidebar.header("Filtri")
 
     default_categories = [c for c in CATEGORIES if c in read_qp("categorie", "").split(",")] or CATEGORIES
-    sito_options = ["Tutti", "Solo con sito", "Solo senza sito"]
-    default_sito = read_qp("sito", "Solo senza sito")
-    default_sito = default_sito if default_sito in sito_options else "Solo senza sito"
     default_cerca = read_qp("cerca", "")
     default_stati = [s for s in STATI if s in read_qp("stati", "").split(",")] or STATI
 
@@ -424,14 +422,6 @@ def leads_page(full: pd.DataFrame, selected_categories: list[str]) -> None:
         options=CATEGORIES,
         default=default_categories,
         key="cat_widget",
-        on_change=persist_filters,
-    )
-
-    site_filter = st.sidebar.radio(
-        "Presenza sito web",
-        options=sito_options,
-        index=sito_options.index(default_sito),
-        key="sito_widget",
         on_change=persist_filters,
     )
 
@@ -468,11 +458,6 @@ def leads_page(full: pd.DataFrame, selected_categories: list[str]) -> None:
         return
 
     filtered = selected.copy()
-    if site_filter == "Solo con sito":
-        filtered = filtered[filtered["ha_sito"] == "SÌ"]
-    elif site_filter == "Solo senza sito":
-        filtered = filtered[filtered["ha_sito"] == "NO"]
-
     if search_text:
         filtered = filtered[filtered["nome"].str.contains(search_text, case=False, na=False)]
 
