@@ -276,7 +276,6 @@ def search_all_categories(categories: list[str]) -> list[dict]:
                     "indirizzo": indirizzo,
                     "telefono": place.get("internationalPhoneNumber", "N/D"),
                     "website": place.get("websiteUri") or "",
-                    "ha_sito": "SÌ" if place.get("websiteUri") else "NO",
                     "rating": place.get("rating") or "",
                     "ha_recensioni": "SÌ" if rating_count > 0 else "NO",
                     "place_id": place_id,
@@ -363,7 +362,7 @@ def apply_stati(data: pd.DataFrame) -> pd.DataFrame:
     stati = load_stati()
     if LEAD_ESCLUSI:
         data = data[~data["chiave"].isin(LEAD_ESCLUSI)]
-    data = data[data["ha_sito"] != "SÌ"]
+    data = data[data["website"] == ""]
     data["Stato"] = data["chiave"].map(lambda k: stati.get(k, ("Da chiamare", None, None))[0]).fillna("Da chiamare")
     data["data_aggiornamento"] = data["chiave"].map(lambda k: stati.get(k, (None, None, None))[1])
     data["richiama_il"] = pd.to_datetime(
@@ -476,7 +475,7 @@ def leads_page(full: pd.DataFrame, selected_categories: list[str]) -> None:
     st.session_state["editor_keys"] = filtered["chiave"].tolist()
 
     st.data_editor(
-        filtered[["categoria", "nome", "indirizzo", "telefono", "ha_sito", "maps_url", "Stato", "richiama_il"]],
+        filtered[["categoria", "nome", "indirizzo", "telefono", "maps_url", "Stato", "richiama_il"]],
         key="stato_editor",
         on_change=on_stato_edit,
         height=1000,
@@ -498,7 +497,7 @@ def leads_page(full: pd.DataFrame, selected_categories: list[str]) -> None:
                 format="DD/MM/YYYY HH:mm",
             ),
         },
-        disabled=["categoria", "nome", "indirizzo", "telefono", "ha_sito", "maps_url"],
+        disabled=["categoria", "nome", "indirizzo", "telefono", "maps_url"],
         hide_index=True,
         use_container_width=True,
     )
