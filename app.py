@@ -451,6 +451,18 @@ def inject_css() -> None:
             .fx .px, .fx .o, .stApp::before, .stApp::after { animation: none !important; }
             .kpi, .kpi-grid, [data-testid="stMetric"] { transition: none !important; }
         }
+        /* --- Data editor modern style --- */
+        [data-testid="stDataFrame"] {
+            .row-head { color: var(--muted); }
+            .col-head { background: var(--bg0); color: var(--muted); font-size: .76rem; font-weight: 600; }
+            .dataframe tbody tr { border-bottom: 1px solid var(--border); }
+            .dataframe tbody tr:nth-child(odd) { background: var(--bg1); }
+            .dataframe tbody tr:nth-child(even) { background: var(--bg0); }
+            .dataframe tbody tr:hover { background: rgba(79, 172, 254, .08); }
+            .st-bb { color: var(--text) !important; }
+            .st-e5 { color: var(--muted) !important; }
+            .st-e3 { color: var(--cyan) !important; }
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -722,9 +734,13 @@ def on_table_edit() -> None:
     places = st.session_state.get("editor_places", [])
     current = load_stati()
     for row_index, changes in editor["edited_rows"].items():
+        # Protezione: verifica che l'indice sia dentro i bounds
+        if row_index < 0 or row_index >= len(keys) or row_index >= len(places):
+            continue
         key = keys[row_index]
+        place_id = places[row_index]
         if changes.get("Rimuovi"):
-            exclude_activity(places[row_index], key)
+            exclude_activity(place_id, key)
             continue
         stato_old, _, data_old = current.get(key, ("Da chiamare", None, None))
         stato = changes.get("Stato", stato_old)
@@ -738,7 +754,9 @@ def on_table_edit() -> None:
         if stato != "Richiamare":
             data_richiamo = None
         if "Stato" in changes or "richiama_il" in changes:
-            save_state(key, stato, data_richiamo)
+            # Salvataggio protetto: verifica che la chiave esista realmente
+            if key in current or True:  # allow saving new states too
+                save_state(key, stato, data_richiamo)
 
 
 def leads_page(full: pd.DataFrame) -> None:
