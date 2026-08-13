@@ -207,6 +207,7 @@ def inject_css() -> None:
         .kpi .icon svg { width: 20px; height: 20px; }
         .kpi .label { color: var(--muted); font-size: .74rem; letter-spacing: .07em; text-transform: uppercase; font-weight: 700; }
         .kpi .value { font-family: 'Sora', sans-serif; font-size: 1.95rem; font-weight: 800; color: #fff; line-height: 1.1; margin-top: 2px; }
+        .kpi .num { display: inline-block; }
         .kpi .value em { font-style: normal; font-size: 1rem; font-weight: 600; color: var(--acc); margin-left: 2px; }
 
         /* ---------- Section titles ---------- */
@@ -308,13 +309,13 @@ def inject_css() -> None:
         }
         .stApp::before {
             width: 520px; height: 520px; top: -160px; right: -140px;
-            background: radial-gradient(circle, rgba(79, 172, 254, 0.45), transparent 70%);
-            animation: orbA 26s ease-in-out infinite alternate;
+            background: radial-gradient(circle, rgba(79, 172, 254, 0.5), transparent 70%);
+            animation: orbA 12s ease-in-out infinite alternate;
         }
         .stApp::after {
             width: 460px; height: 460px; bottom: -180px; left: -140px;
-            background: radial-gradient(circle, rgba(167, 139, 250, 0.4), transparent 70%);
-            animation: orbB 32s ease-in-out infinite alternate;
+            background: radial-gradient(circle, rgba(167, 139, 250, 0.45), transparent 70%);
+            animation: orbB 16s ease-in-out infinite alternate;
         }
         @keyframes orbA { from { transform: translate(0, 0) scale(1); } to { transform: translate(-70px, 50px) scale(1.18); } }
         @keyframes orbB { from { transform: translate(0, 0) scale(1); } to { transform: translate(80px, -60px) scale(1.22); } }
@@ -365,20 +366,34 @@ def inject_css() -> None:
         .kpi-bar span { display: block; height: 100%; width: 0; border-radius: 4px; background: linear-gradient(90deg, var(--acc), #ffffff); animation: fillBar 1.3s .35s cubic-bezier(.16, 1, .3, 1) forwards; }
         @keyframes fillBar { to { width: var(--w, 0%); } }
 
-        /* ----- Layer ambientale: terza sfera + particelle che salgono ----- */
+        /* ----- Barra in cima alla pagina: luce che scorre in continuo ----- */
+        .topbar { position: fixed; top: 0; left: 0; right: 0; height: 4px; z-index: 999; pointer-events: none; overflow: hidden; }
+        .topbar::after { content: ""; position: absolute; top: 0; bottom: 0; width: 35%; background: linear-gradient(90deg, transparent, #22d3ee, #a78bfa, #4facfe, transparent); animation: topbarSweep 2.4s linear infinite; }
+        @keyframes topbarSweep { from { left: -35%; } to { left: 100%; } }
+
+        /* ----- Layer ambientale: sfere + particelle ----- */
         .fx { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
-        .fx .o { position: absolute; border-radius: 50%; filter: blur(80px); }
-        .fx .orb3 { width: 360px; height: 360px; top: 34%; left: 52%; background: radial-gradient(circle, rgba(34, 211, 238, 0.26), transparent 70%); animation: orbC 22s ease-in-out infinite alternate; }
-        @keyframes orbC { from { transform: translate(0, 0) scale(1); } to { transform: translate(-130px, 90px) scale(1.3); } }
-        .fx .px { position: absolute; bottom: -12px; width: 6px; height: 6px; border-radius: 50%; background: rgba(148, 163, 184, 0.75); box-shadow: 0 0 8px rgba(148, 163, 184, 0.6); animation: floatUp linear infinite; }
-        .fx .p1 { left: 8%; animation-duration: 11s; }
-        .fx .p2 { left: 22%; animation-duration: 15s; animation-delay: 2.5s; }
-        .fx .p3 { left: 38%; animation-duration: 13s; animation-delay: 1s; }
-        .fx .p4 { left: 55%; animation-duration: 17s; animation-delay: 4s; }
-        .fx .p5 { left: 71%; animation-duration: 12s; animation-delay: 3s; }
-        .fx .p6 { left: 87%; animation-duration: 15s; animation-delay: 1.5s; }
-        .fx .p7 { left: 96%; animation-duration: 10s; animation-delay: 5s; }
-        @keyframes floatUp { 0% { transform: translateY(0); opacity: 0; } 12% { opacity: .85; } 85% { opacity: .5; } 100% { transform: translateY(-108vh); opacity: 0; } }
+        .fx .o { position: absolute; border-radius: 50%; filter: blur(70px); }
+        .fx .orb3 { width: 360px; height: 360px; top: 34%; left: 52%; background: radial-gradient(circle, rgba(34, 211, 238, 0.32), transparent 70%); animation: orbC 14s ease-in-out infinite alternate; }
+        @keyframes orbC { from { transform: translate(0, 0) scale(1); } to { transform: translate(-140px, 100px) scale(1.35); } }
+        .fx .px { position: absolute; bottom: -14px; width: 9px; height: 9px; border-radius: 50%; animation: floatUp linear infinite; }
+        .fx .p-cyan { background: #22d3ee; box-shadow: 0 0 14px rgba(34, 211, 238, 0.9); }
+        .fx .p-violet { background: #a78bfa; box-shadow: 0 0 14px rgba(167, 139, 250, 0.9); }
+        .fx .p-slate { background: #94a3b8; box-shadow: 0 0 10px rgba(148, 163, 184, 0.8); }
+        .fx .p1 { left: 4%; animation-duration: 9s; }
+        .fx .p2 { left: 12%; animation-duration: 13s; animation-delay: 2.2s; }
+        .fx .p3 { left: 20%; animation-duration: 11s; animation-delay: 0.8s; }
+        .fx .p4 { left: 29%; animation-duration: 15s; animation-delay: 3.4s; }
+        .fx .p5 { left: 37%; animation-duration: 12s; animation-delay: 1.6s; }
+        .fx .p6 { left: 45%; animation-duration: 16s; animation-delay: 4.1s; }
+        .fx .p7 { left: 53%; animation-duration: 10s; animation-delay: 2.8s; }
+        .fx .p8 { left: 61%; animation-duration: 14s; animation-delay: 0.4s; }
+        .fx .p9 { left: 69%; animation-duration: 12.5s; animation-delay: 3.8s; }
+        .fx .p10 { left: 77%; animation-duration: 17s; animation-delay: 1.2s; }
+        .fx .p11 { left: 85%; animation-duration: 11.5s; animation-delay: 5s; }
+        .fx .p12 { left: 93%; animation-duration: 14.5s; animation-delay: 2.4s; }
+        .fx .p13 { left: 97%; animation-duration: 10.5s; animation-delay: 4.6s; }
+        @keyframes floatUp { 0% { transform: translateY(0); opacity: 0; } 12% { opacity: 1; } 85% { opacity: .6; } 100% { transform: translateY(-108vh); opacity: 0; } }
 
         /* ----- Brand: respiro del logo ----- */
         .brand .mark { animation: brandBreathe 4s ease-in-out infinite; }
@@ -430,7 +445,8 @@ def inject_css() -> None:
         @keyframes revealIn { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: none; } }
 
         @media (prefers-reduced-motion: reduce) {
-            *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+            .fx .px, .fx .o, .stApp::before, .stApp::after { animation: none !important; }
+            .kpi, .kpi-grid, [data-testid="stMetric"] { transition: none !important; }
         }
         </style>
         """,
@@ -444,7 +460,7 @@ def kpi_card(label: str, value: str, accent: str, icon: str, pct: int | None = N
     if pct is not None:
         bar = f'<div class="kpi-bar"><span style="--w:{max(0, min(100, pct)):.0f}%"></span></div>'
     return (
-        f'<div class="kpi" style="--acc:{accent}">'
+        f'<div class="kpi" style="--acc:{accent}" data-label="{label}">'
         f'<div class="icon">{ICONS[icon]}</div>'
         f'<div class="label">{label}</div>'
         f'<div class="value"><span class="num" data-count="{num.strip()}">{num.strip()}</span>{sep}{rest}</div>'
@@ -1011,33 +1027,48 @@ def main() -> None:
 
     st.html(
         """
+        <div class="topbar"></div>
         <div class="fx">
             <i class="o orb3"></i>
-            <span class="px p1"></span><span class="px p2"></span><span class="px p3"></span>
-            <span class="px p4"></span><span class="px p5"></span><span class="px p6"></span>
-            <span class="px p7"></span>
+            <span class="px p-cyan p1"></span><span class="px p-violet p2"></span><span class="px p-slate p3"></span>
+            <span class="px p-cyan p4"></span><span class="px p-violet p5"></span><span class="px p-slate p6"></span>
+            <span class="px p-cyan p7"></span><span class="px p-violet p8"></span><span class="px p-slate p9"></span>
+            <span class="px p-cyan p10"></span><span class="px p-violet p11"></span><span class="px p-slate p12"></span>
+            <span class="px p-cyan p13"></span>
         </div>
         <script>
         (function () {
             var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            function animateCount(el, target) {
+                var start = performance.now(), dur = 1100;
+                function tick(now) {
+                    var t = Math.min((now - start) / dur, 1);
+                    var eased = 1 - Math.pow(1 - t, 4);
+                    el.textContent = Math.round(target * eased);
+                    if (t < 1) requestAnimationFrame(tick);
+                }
+                requestAnimationFrame(tick);
+            }
+            function pulse(el) {
+                el.style.transform = 'scale(1.08)';
+                setTimeout(function () { el.style.transform = ''; }, 400);
+            }
             function init() {
                 var nums = document.querySelectorAll('.kpi .num');
                 if (!nums.length) { requestAnimationFrame(init); return; }
+                window.__kpiState = window.__kpiState || {};
+                nums.forEach(function (el) {
+                    var card = el.closest('.kpi');
+                    var key = card ? card.getAttribute('data-label') : '';
+                    var target = parseInt(el.getAttribute('data-count'), 10) || 0;
+                    if (window.__kpiState[key] !== target) {
+                        window.__kpiState[key] = target;
+                        animateCount(el, target);
+                    } else if (!reduce) {
+                        pulse(el);
+                    }
+                });
                 if (reduce) return;
-                if (!window.__kpiCounted) {
-                    window.__kpiCounted = true;
-                    nums.forEach(function (el) {
-                        var target = parseInt(el.getAttribute('data-count'), 10) || 0;
-                        var start = performance.now(), dur = 1100;
-                        function tick(now) {
-                            var t = Math.min((now - start) / dur, 1);
-                            var eased = 1 - Math.pow(1 - t, 4);
-                            el.textContent = Math.round(target * eased);
-                            if (t < 1) requestAnimationFrame(tick);
-                        }
-                        requestAnimationFrame(tick);
-                    });
-                }
                 document.querySelectorAll('.kpi').forEach(function (card) {
                     card.addEventListener('mousemove', function (e) {
                         var r = card.getBoundingClientRect();
