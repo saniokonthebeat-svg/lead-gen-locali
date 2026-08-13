@@ -50,6 +50,9 @@ STATI = [
     "Chiuso",
 ]
 
+REFRESH_OPTIONS = ["5s", "10s", "30s", "Off"]
+REFRESH_MAP = {"5s": 5000, "10s": 10000, "30s": 30000, "Off": None}
+
 STATO_COLORS = {
     "Da chiamare": "#94a3b8",
     "Chiamato - interessato": "#4facfe",
@@ -389,6 +392,7 @@ def persist_filters() -> None:
     qp["sito"] = str(st.session_state.get("sito_widget", "Tutti"))
     qp["cerca"] = str(st.session_state.get("cerca_widget", ""))
     qp["stati"] = ",".join(st.session_state.get("stati_widget", []))
+    qp["refresh"] = str(st.session_state.get("refresh_widget", "5s"))
     qp["tab"] = str(st.session_state.get("tabs_key", 0))
 
 
@@ -431,6 +435,16 @@ def leads_page(full: pd.DataFrame, selected_categories: list[str]) -> None:
         options=STATI,
         default=default_stati,
         key="stati_widget",
+        on_change=persist_filters,
+    )
+
+    refresh_default = read_qp("refresh", "5s")
+    refresh_default = refresh_default if refresh_default in REFRESH_OPTIONS else "5s"
+    st.sidebar.selectbox(
+        "Auto-aggiornamento",
+        options=REFRESH_OPTIONS,
+        index=REFRESH_OPTIONS.index(refresh_default),
+        key="refresh_widget",
         on_change=persist_filters,
     )
 
@@ -515,8 +529,6 @@ def leads_page(full: pd.DataFrame, selected_categories: list[str]) -> None:
 
 
 def dashboard_page(data: pd.DataFrame) -> None:
-    st_autorefresh(interval=10000, key="dash_autorefresh")
-
     if data.empty:
         st.info("Nessun dato disponibile. Fai una ricerca nella pagina Lead.")
         return
@@ -615,6 +627,12 @@ def main() -> None:
         st.info("Nessun dato trovato. Controlla la chiave API di Google Places.")
         return
     full = apply_stati(full.copy())
+
+    refresh_choice = read_qp("refresh", "5s")
+    refresh_choice = refresh_choice if refresh_choice in REFRESH_MAP else "5s"
+    refresh_interval = REFRESH_MAP.get(st.session_state.get("refresh_widget", refresh_choice))
+    if refresh_interval:
+        st_autorefresh(interval=refresh_interval, key="global_refresh")
 
     tab_index = 1 if read_qp("tab", "0") == "1" else 0
     st.session_state["tabs_key"] = tab_index
