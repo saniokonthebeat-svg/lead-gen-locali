@@ -81,6 +81,10 @@ CATEGORIES = [
 
 MAX_PAGES = 3
 
+LEAD_ESCLUSI = [
+    "ChIJBYjezjOHRxMRAqarqNIAELk",
+]
+
 FIELD_MASK = (
     "places.id,"
     "places.displayName,"
@@ -353,6 +357,8 @@ def apply_stati(data: pd.DataFrame) -> pd.DataFrame:
             data["nome"] + "|" + data["indirizzo"],
         )
     stati = load_stati()
+    if LEAD_ESCLUSI:
+        data = data[~data["chiave"].isin(LEAD_ESCLUSI)]
     data["Stato"] = data["chiave"].map(lambda k: stati.get(k, ("Da chiamare", None, None))[0]).fillna("Da chiamare")
     data["data_aggiornamento"] = data["chiave"].map(lambda k: stati.get(k, (None, None, None))[1])
     data["richiama_il"] = pd.to_datetime(
