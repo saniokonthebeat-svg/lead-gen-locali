@@ -345,11 +345,40 @@ def inject_css() -> None:
         /* ----- KPI: riflesso luminoso periodico ----- */
         .kpi::after {
             content: ""; position: absolute; inset: 0; pointer-events: none;
-            background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.05) 45%, rgba(255, 255, 255, 0.12) 50%, rgba(255, 255, 255, 0.05) 55%, transparent 70%);
+            background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.07) 45%, rgba(255, 255, 255, 0.16) 50%, rgba(255, 255, 255, 0.07) 55%, transparent 70%);
             background-size: 250% 100%;
-            animation: shimmer 7s ease-in-out infinite;
+            animation: shimmer 3.2s ease-in-out infinite;
         }
         @keyframes shimmer { 0%, 55% { background-position: 120% 0; } 100% { background-position: -120% 0; } }
+
+        /* ----- KPI: barra accento in scansione continua ----- */
+        .kpi::before {
+            content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
+            background: linear-gradient(90deg, transparent, var(--acc), transparent);
+            background-size: 220% 100%;
+            animation: topScan 3.2s ease-in-out infinite;
+        }
+        @keyframes topScan { 0%, 100% { background-position: 220% 0; } 50% { background-position: -220% 0; } }
+
+        /* ----- KPI: barra di avanzamento sotto il valore ----- */
+        .kpi-bar { height: 4px; margin-top: 12px; border-radius: 4px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+        .kpi-bar span { display: block; height: 100%; width: 0; border-radius: 4px; background: linear-gradient(90deg, var(--acc), #ffffff); animation: fillBar 1.3s .35s cubic-bezier(.16, 1, .3, 1) forwards; }
+        @keyframes fillBar { to { width: var(--w, 0%); } }
+
+        /* ----- Layer ambientale: terza sfera + particelle che salgono ----- */
+        .fx { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+        .fx .o { position: absolute; border-radius: 50%; filter: blur(80px); }
+        .fx .orb3 { width: 360px; height: 360px; top: 34%; left: 52%; background: radial-gradient(circle, rgba(34, 211, 238, 0.26), transparent 70%); animation: orbC 22s ease-in-out infinite alternate; }
+        @keyframes orbC { from { transform: translate(0, 0) scale(1); } to { transform: translate(-130px, 90px) scale(1.3); } }
+        .fx .px { position: absolute; bottom: -12px; width: 6px; height: 6px; border-radius: 50%; background: rgba(148, 163, 184, 0.75); box-shadow: 0 0 8px rgba(148, 163, 184, 0.6); animation: floatUp linear infinite; }
+        .fx .p1 { left: 8%; animation-duration: 11s; }
+        .fx .p2 { left: 22%; animation-duration: 15s; animation-delay: 2.5s; }
+        .fx .p3 { left: 38%; animation-duration: 13s; animation-delay: 1s; }
+        .fx .p4 { left: 55%; animation-duration: 17s; animation-delay: 4s; }
+        .fx .p5 { left: 71%; animation-duration: 12s; animation-delay: 3s; }
+        .fx .p6 { left: 87%; animation-duration: 15s; animation-delay: 1.5s; }
+        .fx .p7 { left: 96%; animation-duration: 10s; animation-delay: 5s; }
+        @keyframes floatUp { 0% { transform: translateY(0); opacity: 0; } 12% { opacity: .85; } 85% { opacity: .5; } 100% { transform: translateY(-108vh); opacity: 0; } }
 
         /* ----- Brand: respiro del logo ----- */
         .brand .mark { animation: brandBreathe 4s ease-in-out infinite; }
@@ -409,12 +438,17 @@ def inject_css() -> None:
     )
 
 
-def kpi_card(label: str, value: str, accent: str, icon: str) -> str:
+def kpi_card(label: str, value: str, accent: str, icon: str, pct: int | None = None) -> str:
+    num, sep, rest = value.partition("<em>")
+    bar = ""
+    if pct is not None:
+        bar = f'<div class="kpi-bar"><span style="--w:{max(0, min(100, pct)):.0f}%"></span></div>'
     return (
         f'<div class="kpi" style="--acc:{accent}">'
         f'<div class="icon">{ICONS[icon]}</div>'
         f'<div class="label">{label}</div>'
-        f'<div class="value">{value}</div>'
+        f'<div class="value"><span class="num" data-count="{num.strip()}">{num.strip()}</span>{sep}{rest}</div>'
+        f"{bar}"
         "</div>"
     )
 
@@ -746,11 +780,11 @@ def leads_page(full: pd.DataFrame) -> None:
 
     render_kpi_row(
         [
-            kpi_card("Totale lead", f"{totale}<em>sel.</em>", "#4facfe", "globe"),
-            kpi_card("Da chiamare", f"{da_chiamare}<em>priorità</em>", "#94a3b8", "phone"),
-            kpi_card("Interessati", f"{interessati}<em>prossimi</em>", "#4facfe", "trend"),
-            kpi_card("Richiamare", f"{richiamare}<em>da riprovare</em>", "#fbbf24", "rotate"),
-            kpi_card("Chiusi", f"{chiusi}<em>vinti</em>", "#34d399", "check"),
+            kpi_card("Totale lead", f"{totale}<em>sel.</em>", "#4facfe", "globe", pct=100 if totale else 0),
+            kpi_card("Da chiamare", f"{da_chiamare}<em>priorità</em>", "#94a3b8", "phone", pct=int(da_chiamare / totale * 100) if totale else 0),
+            kpi_card("Interessati", f"{interessati}<em>prossimi</em>", "#4facfe", "trend", pct=int(interessati / totale * 100) if totale else 0),
+            kpi_card("Richiamare", f"{richiamare}<em>da riprovare</em>", "#fbbf24", "rotate", pct=int(richiamare / totale * 100) if totale else 0),
+            kpi_card("Chiusi", f"{chiusi}<em>vinti</em>", "#34d399", "check", pct=int(chiusi / totale * 100) if totale else 0),
         ]
     )
 
@@ -874,7 +908,7 @@ def dashboard_page(data: pd.DataFrame) -> None:
         ]
         render_kpi_row(
             [
-                kpi_card(stato, f"{int(value)}", STATO_COLORS[stato], icon)
+                kpi_card(stato, f"{int(value)}", STATO_COLORS[stato], icon, pct=int(value / totale * 100) if totale else 0)
                 for stato, value, icon in funnel_items
             ]
         )
@@ -974,6 +1008,52 @@ def main() -> None:
         st_autorefresh(interval=refresh_interval, key="global_refresh")
 
     render_hero(datetime.now().strftime("%H:%M"))
+
+    st.html(
+        """
+        <div class="fx">
+            <i class="o orb3"></i>
+            <span class="px p1"></span><span class="px p2"></span><span class="px p3"></span>
+            <span class="px p4"></span><span class="px p5"></span><span class="px p6"></span>
+            <span class="px p7"></span>
+        </div>
+        <script>
+        (function () {
+            var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            function init() {
+                var nums = document.querySelectorAll('.kpi .num');
+                if (!nums.length) { requestAnimationFrame(init); return; }
+                if (reduce) return;
+                if (!window.__kpiCounted) {
+                    window.__kpiCounted = true;
+                    nums.forEach(function (el) {
+                        var target = parseInt(el.getAttribute('data-count'), 10) || 0;
+                        var start = performance.now(), dur = 1100;
+                        function tick(now) {
+                            var t = Math.min((now - start) / dur, 1);
+                            var eased = 1 - Math.pow(1 - t, 4);
+                            el.textContent = Math.round(target * eased);
+                            if (t < 1) requestAnimationFrame(tick);
+                        }
+                        requestAnimationFrame(tick);
+                    });
+                }
+                document.querySelectorAll('.kpi').forEach(function (card) {
+                    card.addEventListener('mousemove', function (e) {
+                        var r = card.getBoundingClientRect();
+                        var rx = (e.clientX - r.left) / r.width - 0.5;
+                        var ry = (e.clientY - r.top) / r.height - 0.5;
+                        card.style.transform = 'translateY(-6px) rotateX(' + (-ry * 6).toFixed(2) + 'deg) rotateY(' + (rx * 6).toFixed(2) + 'deg)';
+                    });
+                    card.addEventListener('mouseleave', function () { card.style.transform = ''; });
+                });
+            }
+            requestAnimationFrame(init);
+        })();
+        </script>
+        """,
+        unsafe_allow_javascript=True,
+    )
 
     tab_index = 1 if read_qp("tab", "0") == "1" else 0
     st.session_state["tabs_key"] = tab_index
